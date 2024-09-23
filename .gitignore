@@ -1,0 +1,8 @@
+psql_data
+psql_data_old
+data
+clear_venv
+__pycache__
+cache
+log.txt
+.DS_Store

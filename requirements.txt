@@ -1,0 +1,9 @@
+numpy
+pandas
+sqlalchemy
+psycopg2-binary
+ipykernel
+requests
+tqdm
+GeoAlchemy2
+geopandas
