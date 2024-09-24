@@ -1,6 +1,6 @@
 psql_data
 psql_data_old
-data
+# data
 clear_venv
 __pycache__
 cache

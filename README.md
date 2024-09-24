@@ -1,6 +1,23 @@
 # CLEAR: data management
 
-## Install: 
+## Setup database
+- install [docker engine](https://docs.docker.com/engine/install/ubuntu/) or [docker desktop](https://docs.docker.com/desktop/)
+- install [docker-compose]()
+- Run `docker-compose -f docker-compose.db.yml up -d`
+- Stop every container `docker-compose -f docker-compose.db.yml down`
+
+
+ 
+> Web interfaces from docker:
+
+Click on the links to open the locally served web pages
+- [Martin tileserver](http://localhost:8090/catalog)
+- [pg_admin db management](http://localhost:5050)
+- [PostgREST API](http://localhost:8080)
+- [Swagger postgREST API docs](http://localhost:8070)
+
+
+## Install python environment: 
 
 - linux/mac:
     - python3 -m venv clear_venv && source clear_venv/bin/activate
@@ -10,6 +27,10 @@
     - python3 -m venv clear_venv
     - clear_venv\Scripts\activate
     - pip install  -r requirements.txt
+
+
+## Load data into database
+- 
 
 ### marp
 - present on browser: PORT=5340 marp -s docs
@@ -83,17 +104,6 @@ erDiagram
 
 ```
 
-### Notes:
-
-- Define types of voyages:
-    - full length: origin port to destination port
-    - only_when_moving
-    - estimated missing trajectories
-
-#### Questions:
-- Should these be in the AIS_data / voyages? 
-speed, course, heading, ROT, destination, EOT
-- Commmon DB schema standards?
 
 
 

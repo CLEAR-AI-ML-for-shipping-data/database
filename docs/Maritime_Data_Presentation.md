@@ -141,13 +141,7 @@ CREATE TABLE voyage_models (
 # Additional data sources
 
 - Metaocean data
-
-Notes:
-- stats for size of index for a bigger data set (linear or not)
-- How much ram memory does the database need?
-- [BYOL](https://arxiv.org/pdf/2006.07733)
-- Visuallize and cluster view for trajecrory segments 
-- Documentation for db usage
+- Ship meta data from ships database dowload or API?
 
 ---
 

@@ -4,8 +4,11 @@ from sqlalchemy import select, create_engine
 from datetime import datetime
 import csv, traceback
 from tqdm import tqdm
+import argparse, os, json
 
 from db_schema import ClearAIS_DB, Ships, AIS_Data, Voyage_Models, Voyages, Nav_Status
+
+csv_to_db_mapping = json.load(open("src/csv_to_db_mapping.json",'r'))
 
 def read_and_transform_csv_chunk(file_path, chunk_size=10000):
     """
@@ -16,38 +19,33 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000):
     """
     nav_status_set = set()
 
-    for chunk in pd.read_csv(file_path, chunksize=chunk_size, parse_dates=['Timestamp_datetime']):
+    for chunk in pd.read_csv(file_path, chunksize=chunk_size):
         # Ensure the columns are named correctly
         chunk.drop(chunk.columns[chunk.columns.str.contains('unnamed', case=False)], axis=1, inplace=True)
 
-        chunk.columns = [
-            'timestamp', 'Base_station_timestamp', 'mmsi', 'lat', 'lon',
-            'Nav_status_text', 'Speed_over_ground', 'imo', 'ship_and_cargo_type', 'size_a', 
-            'size_b', 'ship_type', 'cargo_type', 'draught'
-        ]
-        chunk.dropna(subset=['ship_and_cargo_type','ship_type', 'cargo_type','draught'], inplace=True)
-        chunk = chunk.astype({'mmsi':str, 'imo':str, 'ship_type':int, 'cargo_type':int, 'ship_and_cargo_type':int})
-        # Collect unique navigational statuses
-        nav_status_set.update(chunk['Nav_status_text'].unique())
+        chunk = chunk.rename(columns=csv_to_db_mapping)
 
-        
+        chunk.dropna(subset=['type_of_ship_and_cargo','type_of_ship', 'type_of_cargo','draught'], inplace=True)
+        chunk = chunk.astype({'mmsi':str, 'imo':str, 'type_of_ship':int, 'type_of_cargo':int, 'type_of_ship_and_cargo':int})
+        # Collect unique navigational statuses
+        nav_status_set.update(chunk['navigational_status_text'].unique())
+
+        ship_data_cols = ['mmsi', 'imo', 'size_a', 'size_b', 'size_c', 'size_d', 'type_of_ship', 'type_of_cargo', 'type_of_ship_and_cargo', 'draught']
         # Transform data into Ships table format
-        ships_data = chunk[['mmsi', 'imo', 'size_a', 'size_b', 'ship_type', 'cargo_type', 'ship_and_cargo_type', 'draught']].drop_duplicates(subset=["mmsi"]).to_dict(orient='records')
+        ships_data = chunk.filter(items=ship_data_cols)
+        ships_data = ships_data.drop_duplicates(subset=["mmsi"]).to_dict(orient='records')
 
         # Transform data into AIS_Data table format
-        ais_data = chunk[['timestamp', 'mmsi', 'lat', 'lon', 'Nav_status_text', 'Speed_over_ground']].copy()
-        ais_data = ais_data.rename(columns={'Speed_over_ground':'speed'})
+        ais_data_cols = ['timestamp', 'mmsi', 'latitude', 'longitude', 'navigational_status', 'navigational_status_text', 'speed_over_ground', 'heading','course_over_ground','country', 'destination']
+        ais_data = chunk.filter(items=ais_data_cols).copy()
+        # ais_data = ais_data.rename(columns={'Speed_over_ground':'speed'})
 
         ## NOTE change this later to have nav staus as ID instead
         # ais_data = ais_data.rename(columns={'Nav_status_text':'nav_status'}) 
 
         
         # Additional fields required for the AIS_Data table can be set to default or calculated values if not available in the CSV
-        ais_data['course'] = None
-        ais_data['heading'] = None
-        ais_data['destination'] = None
-        ais_data['rot'] = None
-        ais_data['eot'] = None
+        fileds_list = ['course_over_ground', 'heading', 'destination','rot', 'eot']
 
         ais_data = ais_data.to_dict(orient='records')
         
@@ -92,11 +90,11 @@ def bulk_insert_data_chunked(file_path, database_url, chunk_size=10000):
             nav_status = session.query(Nav_Status).all()
             nav_status_id_map = {status.code: status.id for status in nav_status}
             for ais_record in ais_data:
-                ais_record['nav_status'] = nav_status_id_map.get(ais_record['Nav_status_text'], 0)
+                ais_record['navigational_status'] = nav_status_id_map.get(ais_record['navigational_status_text'], 0)
 
                 ais_record['ship_id'] = mmsi2ship_id_map.get(str(ais_record['mmsi']),0)
 
-                del ais_record['Nav_status_text']
+                del ais_record['navigational_status_text']
                 del ais_record['mmsi']
             
 
@@ -139,10 +137,29 @@ def remove_existing_ships(session, ships_data):
         # Filter ships_data to only include new mmsi
         ships_data = [ship for ship in ships_data if ship['mmsi'] not in existing_ships]
     return ships_data
-    
 
+def find_files_in_folder(folder, extension):
+    if os.path.exists(folder):
+        paths= []
+        for file in os.listdir(folder):
+            if file.endswith(extension):
+                paths.append(os.path.join(folder , file))
+
+        return paths
+    else:
+        raise Exception("path does not exist -> "+ folder)
+    
+def load_data(file_path, database_url):
+    try:
+        bulk_insert_data_chunked(file_path, database_url, chunk_size=10000)
+    except BaseException as e:
+        v = traceback.format_exception(e)
+
+        with open('log.txt', 'w') as f:
+            f.writelines(v)
 
 if __name__=='__main__':
+
     POSTGRES_DB="gis"
     POSTGRES_USER="clear"
     POSTGRES_PASSWORD="clear"
@@ -151,16 +168,31 @@ if __name__=='__main__':
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     file_path = 'data/ais2018_chemical_tanker.csv'
-    # file_path = 'data/test.csv'
+    folder_path = 'data/AIS 2023 SFV'
 
-    bulk_inserter = ClearAIS_DB(database_url)
-    bulk_inserter.create_tables(drop_existing=False)
-    bulk_inserter.save_schema()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--datapath', type=str, default=folder_path, help='csv files directory')
+    parser.add_argument('--db_url', type=str, default=database_url, help="Postgres database url")
+    parser.add_argument('--save_results', default=False, action='store_true', help='save window detction results in json format')
 
-    try:
-        bulk_insert_data_chunked(file_path, database_url, chunk_size=10000)
-    except BaseException as e:
-        v = traceback.format_exception(e)
+    args =  parser.parse_args()
 
-        with open('log.txt', 'w') as f:
-            f.writelines(v)
+    path = args.path
+    if os.path.exists(path):
+        bulk_inserter = ClearAIS_DB(database_url)
+        bulk_inserter.create_tables(drop_existing=True)
+        bulk_inserter.save_schema()
+
+        if os.path.isfile(path):
+
+            load_data(file_path=path, database_url=database_url)
+        else:
+            csv_files = find_files_in_folder(path, extension=('.csv'))
+
+            for csv_file in csv_files:
+                load_data(file_path=csv_file, database_url=database_url)
+                
+
+        
+
+        

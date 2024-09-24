@@ -20,9 +20,11 @@ class Ships(Base):
     
     size_a = Column(Float, nullable=True)
     size_b = Column(Float, nullable=True)
-    ship_type = Column(Integer, nullable=True)
-    cargo_type = Column(Integer, nullable=True)
-    ship_and_cargo_type = Column(Integer, nullable=True)
+    size_c = Column(Float, nullable=True)
+    size_d = Column(Float, nullable=True)
+    type_of_ship = Column(Integer, nullable=True)
+    type_of_cargo = Column(Integer, nullable=True)
+    type_of_ship_and_cargo = Column(Integer, nullable=True)
     draught = Column(Float, nullable=True)
 
     ship_name = Column(String(20), nullable=True)
@@ -36,16 +38,19 @@ class AIS_Data(Base):
     __tablename__= 'ais_data'
     timestamp = Column(DateTime, primary_key=True)
     ship_id = Column(Integer, ForeignKey("ships.ship_id"), primary_key=True, info="Ship unique ID: Maritime Mobile Service Identity")
-    lat = Column(Float)
-    lon = Column(Float)
-    nav_status = Column(Integer, ForeignKey("nav_status.id"),nullable=True)
-    speed = Column(Float, info="Speed over ground") 
+    latitude = Column(Float)
+    longitude = Column(Float)
+    navigational_status = Column(Integer, ForeignKey("nav_status.id"),nullable=True)
+    speed_over_ground = Column(Float, info="Speed over ground") 
+    course_over_ground = Column(Float, info="course_over_ground") 
 
     course = Column(Float, nullable=True, info="course over ground?")
     heading = Column(Float, nullable=True)
+    country = Column(Float, nullable=True)
     destination = Column(String, nullable=True)
     rot = Column(Float, nullable=True, info="rate of turn")
     eot = Column(Float, nullable=True) # NOTE EOT or EAT? not sure check out the definition
+
 
 
 class Nav_Status(Base):
