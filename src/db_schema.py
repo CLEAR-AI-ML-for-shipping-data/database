@@ -42,11 +42,10 @@ class AIS_Data(Base):
     longitude = Column(Float)
     navigational_status = Column(Integer, ForeignKey("nav_status.id"),nullable=True)
     speed_over_ground = Column(Float, info="Speed over ground") 
-    course_over_ground = Column(Float, info="course_over_ground") 
+    course_over_ground = Column(Float,nullable=True, info="course_over_ground") 
 
-    course = Column(Float, nullable=True, info="course over ground?")
     heading = Column(Float, nullable=True)
-    country = Column(Float, nullable=True)
+    country_ais = Column(String, nullable=True)
     destination = Column(String, nullable=True)
     rot = Column(Float, nullable=True, info="rate of turn")
     eot = Column(Float, nullable=True) # NOTE EOT or EAT? not sure check out the definition

@@ -15,9 +15,11 @@ CREATE TABLE ships (
 	imo VARCHAR(20), 
 	size_a FLOAT, 
 	size_b FLOAT, 
-	ship_type INTEGER, 
-	cargo_type INTEGER, 
-	ship_and_cargo_type INTEGER, 
+	size_c FLOAT, 
+	size_d FLOAT, 
+	type_of_ship INTEGER, 
+	type_of_cargo INTEGER, 
+	type_of_ship_and_cargo INTEGER, 
 	draught FLOAT, 
 	ship_name VARCHAR(20), 
 	owner VARCHAR, 
@@ -64,17 +66,19 @@ CREATE TABLE "Complete_Voyages" (
 CREATE TABLE ais_data (
 	timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
 	ship_id INTEGER NOT NULL, 
-	lat FLOAT, 
-	lon FLOAT, 
-	nav_status VARCHAR(20), 
-	speed FLOAT, 
-	course FLOAT, 
+	latitude FLOAT, 
+	longitude FLOAT, 
+	navigational_status INTEGER, 
+	speed_over_ground FLOAT, 
+	course_over_ground FLOAT, 
 	heading FLOAT, 
+	country_ais VARCHAR, 
 	destination VARCHAR, 
 	rot FLOAT, 
 	eot FLOAT, 
 	PRIMARY KEY (timestamp, ship_id), 
-	FOREIGN KEY(ship_id) REFERENCES ships (ship_id)
+	FOREIGN KEY(ship_id) REFERENCES ships (ship_id), 
+	FOREIGN KEY(navigational_status) REFERENCES nav_status (id)
 )
 
 ;

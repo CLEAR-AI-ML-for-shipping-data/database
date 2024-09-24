@@ -6,10 +6,19 @@ import csv, traceback
 from tqdm import tqdm
 import argparse, os, json
 
-from db_schema import ClearAIS_DB, Ships, AIS_Data, Voyage_Models, Voyages, Nav_Status
+from db_schema import ClearAIS_DB, Ships, AIS_Data, Nav_Status
+from utils import find_files_in_folder, try_except
+from logger import getLogger
+
+logger = getLogger(__file__)
+
 
 csv_to_db_mapping = json.load(open("src/csv_to_db_mapping.json",'r'))
 
+from datetime import datetime
+dateparse = lambda x: datetime.strptime(x, "%d %b %Y %H:%M:%S %Z")
+
+@try_except(logger=logger)
 def read_and_transform_csv_chunk(file_path, chunk_size=10000):
     """
     Generator to read and transform CSV data in chunks and collect unique navigational statuses.
@@ -19,11 +28,12 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000):
     """
     nav_status_set = set()
 
-    for chunk in pd.read_csv(file_path, chunksize=chunk_size):
+    for chunk in pd.read_csv(file_path, chunksize=chunk_size, parse_dates=['Base station time stamp'], date_format=dateparse):
         # Ensure the columns are named correctly
         chunk.drop(chunk.columns[chunk.columns.str.contains('unnamed', case=False)], axis=1, inplace=True)
 
         chunk = chunk.rename(columns=csv_to_db_mapping)
+
 
         chunk.dropna(subset=['type_of_ship_and_cargo','type_of_ship', 'type_of_cargo','draught'], inplace=True)
         chunk = chunk.astype({'mmsi':str, 'imo':str, 'type_of_ship':int, 'type_of_cargo':int, 'type_of_ship_and_cargo':int})
@@ -36,7 +46,7 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000):
         ships_data = ships_data.drop_duplicates(subset=["mmsi"]).to_dict(orient='records')
 
         # Transform data into AIS_Data table format
-        ais_data_cols = ['timestamp', 'mmsi', 'latitude', 'longitude', 'navigational_status', 'navigational_status_text', 'speed_over_ground', 'heading','course_over_ground','country', 'destination']
+        ais_data_cols = ['timestamp', 'mmsi', 'latitude', 'longitude', 'navigational_status', 'navigational_status_text', 'speed_over_ground', 'heading','course_over_ground','country_ais', 'destination']
         ais_data = chunk.filter(items=ais_data_cols).copy()
         # ais_data = ais_data.rename(columns={'Speed_over_ground':'speed'})
 
@@ -52,7 +62,7 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000):
         yield ships_data, ais_data, nav_status_set
 
 
-
+@try_except(logger=logger)
 def bulk_insert_data_chunked(file_path, database_url, chunk_size=10000):
     """
     Function to bulk insert data from CSV file into the database in chunks and handle navigational statuses.
@@ -138,25 +148,6 @@ def remove_existing_ships(session, ships_data):
         ships_data = [ship for ship in ships_data if ship['mmsi'] not in existing_ships]
     return ships_data
 
-def find_files_in_folder(folder, extension):
-    if os.path.exists(folder):
-        paths= []
-        for file in os.listdir(folder):
-            if file.endswith(extension):
-                paths.append(os.path.join(folder , file))
-
-        return paths
-    else:
-        raise Exception("path does not exist -> "+ folder)
-    
-def load_data(file_path, database_url):
-    try:
-        bulk_insert_data_chunked(file_path, database_url, chunk_size=10000)
-    except BaseException as e:
-        v = traceback.format_exception(e)
-
-        with open('log.txt', 'w') as f:
-            f.writelines(v)
 
 if __name__=='__main__':
 
@@ -168,7 +159,7 @@ if __name__=='__main__':
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     file_path = 'data/ais2018_chemical_tanker.csv'
-    folder_path = 'data/AIS 2023 SFV'
+    folder_path = 'data'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--datapath', type=str, default=folder_path, help='csv files directory')
@@ -177,20 +168,20 @@ if __name__=='__main__':
 
     args =  parser.parse_args()
 
-    path = args.path
+    path = args.datapath
     if os.path.exists(path):
         bulk_inserter = ClearAIS_DB(database_url)
-        bulk_inserter.create_tables(drop_existing=True)
+        bulk_inserter.create_tables(drop_existing=False)
         bulk_inserter.save_schema()
 
         if os.path.isfile(path):
 
-            load_data(file_path=path, database_url=database_url)
+            bulk_insert_data_chunked(path, database_url, chunk_size=10000)
         else:
             csv_files = find_files_in_folder(path, extension=('.csv'))
 
             for csv_file in csv_files:
-                load_data(file_path=csv_file, database_url=database_url)
+                bulk_insert_data_chunked(csv_file, database_url, chunk_size=10000)
                 
 
         

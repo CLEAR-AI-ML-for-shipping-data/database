@@ -1,5 +1,5 @@
 {
-    "Base station time stamp": "base_station_time_stamp",
+    "Base station time stamp": "timestamp",
     "Callsign": "callsign",
     "Country (AIS)": "country_ais",
     "Course over ground": "course_over_ground",
@@ -36,6 +36,6 @@
     "Type of ship": "type_of_ship",
     "Type of ship (text)": "type_of_ship_text",
     "Type of ship and cargo": "type_of_ship_and_cargo",
-    "UNIX time stamp": "timestamp",
-    "Timestamp_datetime": "timestamp"
+    "UNIX time stamp": "unix_time_stamp",
+    "Timestamp_datetime": "timestamp_datetime"
 }
