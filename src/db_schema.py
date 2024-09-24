@@ -10,6 +10,11 @@ from io import StringIO
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import from_shape
 
+from logger import getLogger
+from utils import try_except
+
+logger = getLogger(__file__)
+
 Base = declarative_base()
 
 class Ships(Base):
@@ -112,6 +117,7 @@ class ClearAIS_DB():
     def get_session(self):
         return self.Session()
 
+    @try_except(logger=logger)
     def create_tables(self,drop_existing=True):
         if drop_existing: Base.metadata.drop_all(self.engine) 
         # Base.metadata.create_all(self.engine)
@@ -122,7 +128,7 @@ class ClearAIS_DB():
         Voyage_Segments.__table__.create(bind=self.engine, checkfirst=True)
         Complete_Voyages.__table__.create(bind=self.engine, checkfirst=True)
         
-
+    @try_except(logger=logger)
     def save_schema(self,file_path="src/sql/schema.sql"):
         # Collect all the CreateTable statements
         output = StringIO()
@@ -137,6 +143,7 @@ class ClearAIS_DB():
         with open(file_path, 'w') as f:
             f.write(schema_script)
 
+    @try_except(logger=logger)
     def insert_row(self,row:DeclarativeBase):
         session = self.Session()
         try:
@@ -164,6 +171,10 @@ class ClearAIS_DB():
                     stmt = stmt.on_conflict_do_nothing(
                         index_elements=['ship_id', 'timestamp']
                     )
+                if table.__tablename__ == 'ships':
+                    stmt = stmt.on_conflict_do_nothing(
+                        index_elements=['mmsi']
+                    )
                 session.execute(stmt)
             else:
                 session.bulk_insert_mappings(table, data)
@@ -171,8 +182,8 @@ class ClearAIS_DB():
             session.commit()
         except exc.SQLAlchemyError as e:
             session.rollback()
-            print(f"Error inserting data into {table.__tablename__}: {e}")
-            print(traceback.format_exc())
+            logger.error(f"Error inserting data into {table.__tablename__}: {e}")
+            logger.exception('from bulk insert')
         finally:
             session.close()
     

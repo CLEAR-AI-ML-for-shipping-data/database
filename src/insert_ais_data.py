@@ -76,7 +76,8 @@ def bulk_insert_data_chunked(file_path, database_url, chunk_size=10000):
     # Initialize progress bar
     total_rows = sum(1 for _ in open(file_path)) - 1  # Subtract 1 for the header row
     num_chunks = (total_rows // chunk_size) + 1
-    progress_bar = tqdm(total=num_chunks, desc="Processing and Inserting Data")
+    file_name = os.path.split(file_path)[1]
+    progress_bar = tqdm(total=num_chunks, desc=file_name+'::')
     
     # Process chunks and collect all unique navigational statuses
     for ships_data, ais_data, nav_status_set in read_and_transform_csv_chunk(file_path, chunk_size):
@@ -148,6 +149,14 @@ def remove_existing_ships(session, ships_data):
         ships_data = [ship for ship in ships_data if ship['mmsi'] not in existing_ships]
     return ships_data
 
+from multiprocessing import Pool, cpu_count
+def process_files_in_parallel(csv_files, database_url, chunk_size=50000):
+    num_cores = cpu_count()
+
+    with Pool(num_cores) as pool:
+        # Pass the table name along with the file path for parallel processing
+        pool.starmap(bulk_insert_data_chunked, [(file_path, database_url,chunk_size) for file_path in csv_files])
+
 
 if __name__=='__main__':
 
@@ -159,7 +168,7 @@ if __name__=='__main__':
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     file_path = 'data/ais2018_chemical_tanker.csv'
-    folder_path = 'data'
+    folder_path = 'data/AIS 2023 SFV'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--datapath', type=str, default=folder_path, help='csv files directory')
@@ -179,9 +188,11 @@ if __name__=='__main__':
             bulk_insert_data_chunked(path, database_url, chunk_size=10000)
         else:
             csv_files = find_files_in_folder(path, extension=('.csv'))
-
-            for csv_file in csv_files:
-                bulk_insert_data_chunked(csv_file, database_url, chunk_size=10000)
+            # n_files = len(csv_files)
+            # for count, csv_file in enumerate(csv_files):
+            #     print(count, '/',n_files, ': ', csv_file)
+                # bulk_insert_data_chunked(csv_file, database_url, chunk_size=50000)
+            process_files_in_parallel(csv_files=csv_files, database_url=database_url, chunk_size=50000)
                 
 
         
