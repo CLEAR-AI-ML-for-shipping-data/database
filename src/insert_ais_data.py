@@ -184,7 +184,6 @@ if __name__=='__main__':
         bulk_inserter.save_schema()
 
         if os.path.isfile(path):
-
             bulk_insert_data_chunked(path, database_url, chunk_size=10000)
         else:
             csv_files = find_files_in_folder(path, extension=('.csv'))

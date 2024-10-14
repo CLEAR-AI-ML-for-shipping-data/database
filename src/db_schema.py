@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Date, Enum, Boolean,
 from sqlalchemy.dialects.postgresql import insert
 import pandas as pd
 from sqlalchemy.schema import CreateTable
+from sqlalchemy.sql import text
 from io import StringIO
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import from_shape
@@ -187,6 +188,20 @@ class ClearAIS_DB():
         finally:
             session.close()
     
+    def excecute(self, query):
+        session = self.Session()
+        try:
+            out = session.execute(text(query))
+            session.commit()
+            return out
+        except exc.SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Error executing {query}: {e}")
+            logger.exception('from execute ais db>>')
+        finally:
+            session.close()
+        
+        return None
 
     def to_df(self,query):
         conn = self.session.connection()

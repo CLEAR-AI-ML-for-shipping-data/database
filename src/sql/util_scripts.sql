@@ -47,10 +47,13 @@ FROM ships s
 WHERE v.ship_id = s.id;
 
 ALTER TABLE public.voyage_segments
-    ADD COLUMN data_point_count INT;
+	DROP COLUMN IF EXISTS data_point_count,
+    ADD COLUMN IF NOT EXISTS count INT,
+    ADD COLUMN IF NOT EXISTS duration INTERVAL;
+
 
 UPDATE public.voyage_segments v
-SET data_point_count = (
+SET count = (
     SELECT COUNT(*)
     FROM ais_data a
     WHERE a.ship_id = v.ship_id

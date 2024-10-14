@@ -33,3 +33,19 @@ Count:29421289
 
 """public"".""ais_data"""	"2370 MB"	"884 MB"	"3254 MB"
 """public"".""voyage_segments"""	"49 MB"	"2832 kB"	"52 MB"
+
+
+## Todo
+- Identify voyages per each ship ID
+- Identify voyage sements in  timeframe / window.
+- How to reduce index size:
+    - use lat, lon geometry point as index instead of combining timestamp and shipid
+- Does the index size % reduce further with more data? (how does the graph look like)
+- log all events
+
+
+## workshop 30th sep 2024
+- Internal waters and speed < xx
+- needs timestamps along with the coordinates for the voyage segments
+- check if helcom project is opensource and can be updated further.
+- static and dynamic obstacles.
