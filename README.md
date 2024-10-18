@@ -30,7 +30,11 @@ Click on the links to open the locally served web pages
 
 
 ## Load data into database
-- 
+- Start the local db container `docker-compose -f docker-compose.db.yml up -d`
+- To insert data into database: Run `python3 src/insert_ais_data.py --datapath path/to/csv_files`
+
+## Compute voyage segments
+- Run `python3 src/compute_voyage_segments.py`
 
 ### marp
 - present on browser: PORT=5340 marp -s docs

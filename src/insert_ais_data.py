@@ -173,7 +173,6 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--datapath', type=str, default=folder_path, help='csv files directory')
     parser.add_argument('--db_url', type=str, default=database_url, help="Postgres database url")
-    parser.add_argument('--save_results', default=False, action='store_true', help='save window detction results in json format')
 
     args =  parser.parse_args()
 
