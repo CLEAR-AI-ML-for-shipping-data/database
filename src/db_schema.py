@@ -2,7 +2,7 @@ import enum, traceback, datetime
 from sqlalchemy import create_engine, exc
 from sqlalchemy.orm.decl_api import declarative_base, DeclarativeBase
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Enum, Boolean, DateTime, Float, BigInteger
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Enum, Boolean, DateTime, Float, BigInteger, ARRAY
 from sqlalchemy.dialects.postgresql import insert
 import pandas as pd
 from sqlalchemy.schema import CreateTable
@@ -93,7 +93,7 @@ class Voyage_Segments(Base):
     origin_port_distance = Column(Float, nullable=True)
     destination_port_distance = Column(Float, nullable=True)
     ais_data = Column(Geometry('LINESTRING'),nullable=True)
-
+    ais_timsestamps = Column(ARRAY(DateTime),nullable=True)
 
 class Complete_Voyages(Base):
     __tablename__ = "Complete_Voyages"

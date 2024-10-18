@@ -4,6 +4,9 @@ ALTER TABLE public.voyages
     ADD COLUMN IF NOT EXISTS origin_port_distance FLOAT,
     ADD COLUMN IF NOT EXISTS destination_port_distance FLOAT;
 
+ALTER TABLE voyage_segments
+	ADD COLUMN timestamps TIMESTAMP[];
+
 -- Drop the columns if necessary
 ALTER TABLE public.voyages
     DROP COLUMN IF EXISTS origin,

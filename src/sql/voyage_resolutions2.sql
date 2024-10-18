@@ -85,8 +85,8 @@ SELECT
 FROM 
     aggregated_ais_data_voyage
 WHERE 
-    voyage_id = 1234         -- Replace 1234 with the specific voyage ID
-    AND resolution_type = '5min';  -- Replace '5min' with the desired interval ('1min', '5min', '30min', '1hr')
+    voyage_id = 1234        
+    AND resolution_type = '5min';  
 
 
 SELECT 
@@ -99,4 +99,4 @@ SELECT
 FROM 
     aggregated_ais_data_voyage
 WHERE 
-    voyage_id = 1234;  -- Replace 1234 with the specific voyage ID
+    voyage_id = 1234; 

@@ -10,7 +10,7 @@ WITH voyage_data AS (
             ais_data
         WHERE
             speed_over_ground < {speed_threshold}
-            AND ship_id IN ({ship_ids_str})  -- Process this batch of ship IDs
+            AND ship_id IN ({ship_ids_batch})  
     ),
     segments AS (
         SELECT
@@ -19,15 +19,29 @@ WITH voyage_data AS (
             next_time AS end_dt,
             point_geom AS origin,
             LEAD(point_geom) OVER (PARTITION BY ship_id ORDER BY point_time) AS destination,
-            ST_MakeLine(point_geom, LEAD(point_geom) OVER (PARTITION BY ship_id ORDER BY point_time)) AS ais_data,
-            next_time - point_time AS duration
+            subquery.ais_data ,  
+            subquery.ais_timestamps, 
+            next_time - point_time AS duration, 
+            subquery.num_points 
         FROM
-            voyage_data
+            voyage_data vd
+        CROSS JOIN LATERAL (
+            SELECT 
+                ST_MakeLine(ST_SetSRID(ST_MakePoint(ad.longitude, ad.latitude), 4326)ORDER BY ad.timestamp) AS ais_data, 
+                ARRAY_AGG(ad.timestamp ORDER BY ad.timestamp) AS ais_timestamps,  
+                COUNT(ad.timestamp) AS num_points 
+            FROM
+                ais_data ad
+            WHERE
+                ad.ship_id = vd.ship_id
+                AND ad.timestamp >= vd.point_time
+                AND ad.timestamp < vd.next_time
+        ) AS subquery
         WHERE
-            navigational_status in (1,8)
-            AND next_status not in (1,8)
+            navigational_status in ({include_nav_statuses})
+            AND next_status not in ({include_nav_statuses})
     )
-    INSERT INTO voyage_segments (ship_id, start_dt, end_dt, origin, destination, ais_data, duration, count)
+    INSERT INTO voyage_segments (ship_id, start_dt, end_dt, origin, destination, ais_data, ais_timestamps, duration, count)
     SELECT
         ship_id,
         start_dt,
@@ -35,13 +49,15 @@ WITH voyage_data AS (
         origin,
         destination,
         ais_data,
+        ais_timestamps,
         duration,
-        ST_NumPoints(ais_data) 
+        num_points
     FROM
         segments
     WHERE
         origin IS NOT NULL
         AND destination IS NOT NULL
-        AND end_dt - start_dt >= INTERVAL '30 minutes';
+        AND end_dt - start_dt >= INTERVAL {min_duration}
+        AND num_points>{min_points};
 
 
