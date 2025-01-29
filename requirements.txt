@@ -7,3 +7,4 @@ requests
 tqdm
 GeoAlchemy2
 geopandas
+python-dotenv

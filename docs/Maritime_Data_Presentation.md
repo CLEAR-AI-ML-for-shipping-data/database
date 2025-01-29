@@ -300,6 +300,10 @@ WHERE end_dt - start_dt >= INTERVAL '90 days' AND data_point_count > 1000
 ORDER BY voyage_id ASC, ship_id ASC 
 ```
 
+---
+# How to connect to the database?
+
+
 
 ---
 # 🎯 Questions

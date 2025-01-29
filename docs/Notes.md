@@ -43,6 +43,8 @@ Count:29421289
 - Does the index size % reduce further with more data? (how does the graph look like)
 - log all events
 
+- add units to the variable names
+- use iso format for the timestamps
 
 ## workshop 30th sep 2024
 - Internal waters and speed < xx
