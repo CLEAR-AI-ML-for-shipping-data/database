@@ -13,12 +13,13 @@ def insert_geodata(coastline_file: str, tablename: str):
     POSTGRES_HOST = "localhost"
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
+    logger.info(f"Loading data from {coastline_file}")
     gdf = gpd.read_file(coastline_file)
-
     engine = create_engine(database_url)
 
+    logger.info("Inserting data into PostGIS database")
+    # Inserting a table this way already yields an indexed table in PostGis
     gdf.to_postgis(name=tablename, con=engine, if_exists="replace", index=False)
-
     logger.info(f"Succesfully inserted {coastline_file} into PostGIS database")
 
 
