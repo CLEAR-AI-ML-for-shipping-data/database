@@ -11,7 +11,7 @@ logger = getLogger(__file__)
 def main(database_url):
     db = ClearAIS_DB(database_url)
 
-    ship_ids = [ x[0] for x in db.excecute(query="SELECT DISTINCT on (ship_id) ship_id FROM voyage_segments ORDER BY ship_id;").fetchall()]
+    ship_ids = [ x[0] for x in db.execute(query="SELECT DISTINCT on (ship_id) ship_id FROM voyage_segments ORDER BY ship_id;").fetchall()]
 
     
     with db.Session() as session:
