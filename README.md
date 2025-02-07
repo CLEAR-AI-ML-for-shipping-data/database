@@ -44,7 +44,7 @@ Click on the links to open the locally served web pages
 
 ### marp
 npm i -g @marp-team/marp-cli
-- present on browser: PORT=5340 marp -s docs
+- present on browser: PORT=5340 marp --html -s docs
 
 ### DB Schema
 

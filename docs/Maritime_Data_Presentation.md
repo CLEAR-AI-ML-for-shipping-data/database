@@ -7,7 +7,7 @@ theme: uncover
 # backgroundColor: #1a1a1a
 
 class: invert
-paginate: true
+# paginate: true
 _paginate: false
 
 # Docs
@@ -15,9 +15,9 @@ _paginate: false
 
 ---
 
-# 🚢 AIS Data Processing & Visualization
+# 🚢 CLEAR Database & Visualization
 
----
+<!-- ---
 
 # 🌟 Overview
 
@@ -25,17 +25,24 @@ _paginate: false
 - **Data sources**
 - **Views and Queries**
 - **Frontend Integration**
-- **Visualization with OpenLayers**
+- **Visualization with OpenLayers** -->
 
 ---
 
-## 🛠️ 1. Database Schema Design
+## 🛠️  Database
 
+---
+
+## ✨ Database architechture and Frontend Integration 
+
+![width:1000px](assets/framework.jpg)
+
+---
 ### Tables Overview
 
 - **`ships` Table**: Stores ship details like MMSI, IMO, and dimensions.
 - **`ais_data` Table**: Holds AIS data with timestamps, positions, speed, and navigation status.
-- **`voyage_segments` Table**: Stores segmented voyage data with origin, destination, and `LINESTRING` geometries.
+- **`voyage_segments` Table**: Stores segmented voyage data with origin `POINT`, destination `POINT`, and `LINESTRING` AIS_data.
 
 ---
 # Schema
@@ -43,99 +50,18 @@ _paginate: false
 
 ---
 
-# Schema Details: Ships
-
-```sql
-CREATE TABLE ships (
-  ship_id SERIAL PRIMARY KEY,
-  mmsi VARCHAR(20) UNIQUE NOT NULL,
-  imo VARCHAR(20),
-  ship_name VARCHAR(100),
-  owner VARCHAR(100),
-  draught FLOAT,
-  size_a FLOAT,
-  size_b FLOAT,
-  ship_type INTEGER,
-  cargo_type INTEGER
-);
-```
-
----
-# Schema Details: AIS_data (main data table)
-
-```sql
-CREATE TABLE ais_data (
-  ais_id SERIAL PRIMARY KEY,
-  ship_id INTEGER REFERENCES ships(ship_id),
-  timestamp TIMESTAMP WITHOUT TIME ZONE,
-  lat FLOAT,
-  lon FLOAT,
-  nav_status INTEGER,
-  speed FLOAT,
-  course FLOAT,
-  heading FLOAT,
-  destination VARCHAR(100),
-  rot FLOAT,
-  eot FLOAT
-);
-```
-
----
-# Schema Details: Navigation status
-
-```sql
-CREATE TABLE nav_status (
-	id SERIAL NOT NULL, 
-	code VARCHAR, 
-	description VARCHAR, 
-	PRIMARY KEY (id)
-)
-```
-
---- 
-# Schema Details: Voyage segements
-
-```sql
-CREATE TABLE voyage_segments (
-  voyage_id SERIAL NOT NULL,
-  ship_id INTEGER NOT NULL REFERENCES ships(ship_id),
-  start_dt TIMESTAMP WITHOUT TIME ZONE,
-  end_dt TIMESTAMP WITHOUT TIME ZONE,
-  origin geometry(POINT, 4326),
-  destination geometry(POINT, 4326),
-  origin_port VARCHAR,
-  destination_port VARCHAR,
-  origin_port_distance FLOAT,
-  destination_port_distance FLOAT,
-  ais_data geometry(LINESTRING, 4326),
-  PRIMARY KEY (voyage_id, ship_id)
-);
-```
-
----
-# Schema Details: Voyage models
-```sql
-CREATE TABLE voyage_models (
-	id SERIAL NOT NULL, 
-	comment VARCHAR, 
-	script VARCHAR, 
-	PRIMARY KEY (id), 
-	UNIQUE (comment)
-)
-```
-
-
-
-
----
-
 # 🌐 Data Sources
 
-- AIS data (ais2018_chemical_tanker.csv)
+- AIS data 
 - [OSM](https://download.openstreetmap.fr/extracts/)
 - [Natural earth](https://www.naturalearthdata.com/downloads/)
 
-#### 😎 OSM data from [openseamaps](https://www.openseamap.org/index.php?id=openseamap&no_cache=1)
+#### OSM data from [openseamaps](https://www.openseamap.org/index.php?id=openseamap&no_cache=1)
+
+---
+## Mapping new data to Database
+
+![width:800px](assets/csv_mapping.png)
 
 ---
 # Additional data sources
@@ -145,30 +71,148 @@ CREATE TABLE voyage_models (
 
 ---
 
-# Diskspace
+# 💾 Diskspace
 
 ### AIS data
 
-Orignal: 4450 MB
+Decompressed data: 307 GB
 
-table: 2370 MB
-index: 884 MB
-total: 3254 MB
+table: 101 GB
+index: 29 GB
+total: 130 GB
+
+---
+
+## 🎤 Status update
+
+---
+## 🔗 Connecting to database and NAS
+
+1) NAS is configured at CIT  
+
+2) All the data / database storage is on NAS right now
+
+3) Database is up and running using the data on the NAS
+
+4) Acces to DB provided for Leon via VPN and python scripts.
+
+---
+# QGIS
+![width:800px](assets/qgis.png)
+
+---
+# Front end visualization: 
+
++ QGIS
++ Martin tile server + vue openlayers
++ Leon's 
+
++ what brings value? 
+(not just nice to have visualization
+
+---
+# Next steps: 
++ Provide public/internet access to db
++ introduce static and dynamic obstacles layers
++ add in meta ocean data: waves, winds etc as vector tiles
++ Develop Method to verify voyages / voyage segments.
+
+
+---
+## Querrying
+- bounding box query on the tables with regular lat lon takes more than 10 - 20 min
+- if the table is big it might be even more!
+
+#### So, how to make the query run faster?
+
+---
+### Spacial index on the geometry 
+- Geometry type (POINT or LINESTRING)
+- Use bounding box method `ST_MakeEnvelope` to select data
+```sql
+CREATE INDEX idx_ais_data_geom ON ais_data_geom USING GIST (lonlat);
+
+SELECT *
+FROM ais_data_geom
+WHERE lonlat && ST_MakeEnvelope(12, 57, 12, 57.6, 4326);
+```
+---
+### More ST methods
+![width:300px](assets/st_methods.png)
+
+---
+### Spacial Indexing methods: 
+- GIST: generalized search tree
+    - uses R-tree 
+    - works well when there is overlap but quite slow to create
+- SPGIST: space partitioned GIST
+    - uses variation of kd/quad-tree 
+    - works well when there is NO overlap
+- BRIN: Block Range Index
+    - uses physical blocks of data in db
+
+---
+<!-- .slide: style="background-color: #f5f5f5;" -->
+### R-tree
++ seperates part of the data using rectangular bounding boxes
+
+![width:400px](https://cglab.ca/~cdillaba/comp5409_project/images/rtree.png)
+
+---
+### kd-tree
++ seperates all the data using planes.
+
+![width:500px](https://upload.wikimedia.org/wikipedia/commons/b/b6/3dtree.png)
+
+---
+
+### Comparision
+
+<div style="width: 70%; font-size: 18px; margin: auto;"> 
+
+| **Feature**           | **GiST**                                     | **SP-GiST**                                   | **BRIN**                                        |
+|-----------------------|----------------------------------------------|-----------------------------------------------|-------------------------------------------------|
+| **`Index Granularity`**     | Row-level                                    | Row-level with space partitioning             | Block-level (summary for ranges of rows)        |
+| **`Best For `**             | General-purpose spatial queries              | Uniformly distributed point data               | Very large, naturally ordered datasets          |
+| **`Index Size `**           | Larger                                       | Often smaller                                  | Very small      
+| **`Build Time`**            | Moderate                                     | Moderate                                       | Very fast                                       |
+| **`Query Precision `**      | High (fine-grained filtering)                | High for specific patterns                     | Coarse; may yield false positives               |
+| **`Maintenance Overhead`**  | Higher (more frequent updates/rebalancing)   | Moderate                                       | Minimal                                         |
+
+</div>
+
+---
+### What if the table is too big?
+1) Pre-partition the table based on regions or date ranges
+    - different table for different regions / time-frames
+    - and also use SP-GIST indexing on sub-tables
+2) Clustering the table using spacial index 
+    - using `CLUSTER`[command](https://postgis.net/workshops/postgis-intro/clusterindex.html) 
+3) Query planning and caching
+4) Creating views for pre-filtering and aggregating data.
+5) data compression
+
+--- 
+## Data compression 
+- Top-Down Kinematic Compression (TDKC) vs Douglas–Peucker (DP) algorithm
+
+- Should the data be compressed before inserting into the database?
+
+- is python good enough or should we use c or go or someother libraries for preformance?
 
 
 
 ---
 
-# ✨ Frontend Integration 
+#  Thank you for your time 🐳
 
-![width:1000px](assets/image.png)
+
+
+
 
 ---
-# ✨ Frontend Integration: tile server vs rest api
 
-- Martin tile server vs PostgREST api
-
-
+# More technical details....
 ---
 
 # 🗺️ Vector tiles with OpenLayers and Vue3
@@ -300,24 +344,90 @@ WHERE end_dt - start_dt >= INTERVAL '90 days' AND data_point_count > 1000
 ORDER BY voyage_id ASC, ship_id ASC 
 ```
 
----
-# How to connect to the database?
-
 
 
 ---
-# 🎯 Questions
-
-- Commmon DB schema standards? How to agree and update frequently?
-- Data sources? Meteorological data? Ocean/weather data? 
-- How to share the code?
-- More db views and ?
-- Front end visualization: ideas to view the data in different ways!
-
-
+# Extra technical info
 
 ---
 
-#  Thank you for your attention 🐳
+# Schema Details: Ships
 
+```sql
+CREATE TABLE ships (
+  ship_id SERIAL PRIMARY KEY,
+  mmsi VARCHAR(20) UNIQUE NOT NULL,
+  imo VARCHAR(20),
+  ship_name VARCHAR(100),
+  owner VARCHAR(100),
+  draught FLOAT,
+  size_a FLOAT,
+  size_b FLOAT,
+  ship_type INTEGER,
+  cargo_type INTEGER
+);
+```
 
+---
+# Schema Details: AIS_data (main data table)
+
+```sql
+CREATE TABLE ais_data (
+  ais_id SERIAL PRIMARY KEY,
+  ship_id INTEGER REFERENCES ships(ship_id),
+  timestamp TIMESTAMP WITHOUT TIME ZONE,
+  lat FLOAT,
+  lon FLOAT,
+  nav_status INTEGER,
+  speed FLOAT,
+  course FLOAT,
+  heading FLOAT,
+  destination VARCHAR(100),
+  rot FLOAT,
+  eot FLOAT
+);
+```
+
+---
+# Schema Details: Navigation status
+
+```sql
+CREATE TABLE nav_status (
+	id SERIAL NOT NULL, 
+	code VARCHAR, 
+	description VARCHAR, 
+	PRIMARY KEY (id)
+)
+```
+
+--- 
+# Schema Details: Voyage segements
+
+```sql
+CREATE TABLE voyage_segments (
+  voyage_id SERIAL NOT NULL,
+  ship_id INTEGER NOT NULL REFERENCES ships(ship_id),
+  start_dt TIMESTAMP WITHOUT TIME ZONE,
+  end_dt TIMESTAMP WITHOUT TIME ZONE,
+  origin geometry(POINT, 4326),
+  destination geometry(POINT, 4326),
+  origin_port VARCHAR,
+  destination_port VARCHAR,
+  origin_port_distance FLOAT,
+  destination_port_distance FLOAT,
+  ais_data geometry(LINESTRING, 4326),
+  PRIMARY KEY (voyage_id, ship_id)
+);
+```
+
+---
+# Schema Details: Voyage models
+```sql
+CREATE TABLE voyage_models (
+	id SERIAL NOT NULL, 
+	comment VARCHAR, 
+	script VARCHAR, 
+	PRIMARY KEY (id), 
+	UNIQUE (comment)
+)
+```
