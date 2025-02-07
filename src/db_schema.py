@@ -190,7 +190,7 @@ class ClearAIS_DB():
         finally:
             session.close()
     
-    def excecute(self, query):
+    def execute(self, query):
         session = self.Session()
         try:
             out = session.execute(text(query))
