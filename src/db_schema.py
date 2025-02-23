@@ -57,7 +57,20 @@ class AIS_Data(Base):
     rot = Column(Float, nullable=True, info="rate of turn")
     eot = Column(Float, nullable=True) # NOTE EOT or EAT? not sure check out the definition
 
-
+class Trajectories(Base):
+    __tablename__ = "trajectories"
+    trajectory_id = Column(Integer, primary_key=True, autoincrement=True)
+    mmsi = Column(String, primary_key=True)
+    start_dt = Column(DateTime)
+    end_dt =  Column(DateTime)
+    origin = Column(Geometry('POINT'), nullable=True)
+    destination = Column(Geometry('POINT'), nullable=True)
+    count = Column(Integer, nullable=True)
+    duration = Column(Interval, nullable=True)
+    coordinates = Column(Geometry('LINESTRING'),nullable=True)
+    timestamps = Column(ARRAY(DateTime),nullable=True)
+    speed_over_ground = Column(ARRAY(Float),nullable=True)
+    navigational_status = Column(ARRAY(Integer),nullable=True)
 
 class Nav_Status(Base):
     """
@@ -127,6 +140,7 @@ class ClearAIS_DB():
         # Base.metadata.create_all(self.engine)
         Ships.__table__.create(bind=self.engine, checkfirst=True)
         Nav_Status.__table__.create(bind=self.engine, checkfirst=True)
+        Trajectories.__table__.create(bind=self.engine, checkfirst=True)
         AIS_Data.__table__.create(bind=self.engine, checkfirst=True)
         Voyage_Models.__table__.create(bind=self.engine, checkfirst=True)
         Voyage_Segments.__table__.create(bind=self.engine, checkfirst=True)

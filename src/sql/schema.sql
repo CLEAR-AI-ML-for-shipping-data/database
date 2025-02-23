@@ -32,6 +32,25 @@ CREATE TABLE ships (
 ;
 
 
+CREATE TABLE trajectories (
+	trajectory_id SERIAL NOT NULL, 
+	mmsi VARCHAR NOT NULL, 
+	start_dt TIMESTAMP WITHOUT TIME ZONE, 
+	end_dt TIMESTAMP WITHOUT TIME ZONE, 
+	origin geometry(POINT,-1), 
+	destination geometry(POINT,-1), 
+	count INTEGER, 
+	duration INTERVAL, 
+	coordinates geometry(LINESTRING,-1), 
+	timestamps TIMESTAMP WITHOUT TIME ZONE[], 
+	speed_over_ground FLOAT[], 
+	navigational_status INTEGER[], 
+	PRIMARY KEY (trajectory_id, mmsi)
+)
+
+;
+
+
 CREATE TABLE voyage_models (
 	id SERIAL NOT NULL, 
 	comment VARCHAR, 
@@ -68,6 +87,7 @@ CREATE TABLE ais_data (
 	ship_id INTEGER NOT NULL, 
 	latitude FLOAT, 
 	longitude FLOAT, 
+	geom geometry(POINT,-1), 
 	navigational_status INTEGER, 
 	speed_over_ground FLOAT, 
 	course_over_ground FLOAT, 
