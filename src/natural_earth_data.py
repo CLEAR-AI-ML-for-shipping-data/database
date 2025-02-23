@@ -14,10 +14,10 @@ def load_data_into_postgis():
     # Step 2: Connect to PostGIS Database
     # Replace with your actual PostgreSQL/PostGIS credentials
     POSTGRES_DB="gis"
+    POSTGRES_HOST ="10.7.0.1"
     POSTGRES_USER="clear"
-    POSTGRES_PASSWORD="clear"
+    POSTGRES_PASSWORD="a4DaW96L85HU"
     POSTGRES_PORT=5432
-    POSTGRES_HOST = "localhost"
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     engine = create_engine(database_url)
@@ -79,5 +79,5 @@ def plot():
     m.save('ne_map.html')
 
 if __name__=='__main__':
-    # load_data_into_postgis()
-    plot()
+    load_data_into_postgis()
+    # plot()

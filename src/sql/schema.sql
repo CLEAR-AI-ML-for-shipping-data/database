@@ -96,7 +96,10 @@ CREATE TABLE voyage_segments (
 	destination_port VARCHAR, 
 	origin_port_distance FLOAT, 
 	destination_port_distance FLOAT, 
+	count INTEGER, 
+	duration INTERVAL, 
 	ais_data geometry(LINESTRING,-1), 
+	ais_timestamps TIMESTAMP WITHOUT TIME ZONE[], 
 	PRIMARY KEY (voyage_id, ship_id), 
 	FOREIGN KEY(ship_id) REFERENCES ships (ship_id)
 )

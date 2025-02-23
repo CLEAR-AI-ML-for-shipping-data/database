@@ -51,3 +51,11 @@ Count:29421289
 - needs timestamps along with the coordinates for the voyage segments
 - check if helcom project is opensource and can be updated further.
 - static and dynamic obstacles.
+
+
+## Work flow
+- load csvs one by one
+- order the data based on ship id / mmsi
+- wait till the trajectory is complete before the data is pushed into the datbase
+- compress the trajectory
+- split database into months
