@@ -5,6 +5,8 @@ from datetime import datetime
 import csv, traceback
 from tqdm import tqdm
 import argparse, os, json
+from geoalchemy2 import Geometry, WKTElement
+from shapely.geometry import Point
 
 from db_schema import ClearAIS_DB, Ships, AIS_Data, Nav_Status
 from utils import find_files_in_folder, try_except
@@ -104,7 +106,11 @@ def bulk_insert_data_chunked(file_path, database_url, chunk_size=10000):
                 ais_record['navigational_status'] = nav_status_id_map.get(ais_record['navigational_status_text'], 0)
 
                 ais_record['ship_id'] = mmsi2ship_id_map.get(str(ais_record['mmsi']),0)
-
+                
+                point_wkt = f'POINT({ais_record['longitude']} {ais_record['latitude']})'
+                geom = WKTElement(point_wkt, srid=4326)
+                ais_record['geom'] = geom
+                
                 del ais_record['navigational_status_text']
                 del ais_record['mmsi']
             

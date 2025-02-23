@@ -46,6 +46,7 @@ class AIS_Data(Base):
     ship_id = Column(Integer, ForeignKey("ships.ship_id"), primary_key=True, info="Ship unique ID: Maritime Mobile Service Identity")
     latitude = Column(Float)
     longitude = Column(Float)
+    geom = Column(Geometry('POINT'),nullable=True)
     navigational_status = Column(Integer, ForeignKey("nav_status.id"),nullable=True)
     speed_over_ground = Column(Float, info="Speed over ground") 
     course_over_ground = Column(Float,nullable=True, info="course_over_ground") 
