@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 import pandas as pd
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql import text
+from sqlalchemy.schema import UniqueConstraint
 from io import StringIO
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import from_shape
@@ -71,6 +72,13 @@ class Trajectories(Base):
     timestamps = Column(ARRAY(DateTime),nullable=True)
     speed_over_ground = Column(ARRAY(Float),nullable=True)
     navigational_status = Column(ARRAY(Integer),nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('mmsi', 'start_dt', name='uix_mmsi_start_dt'),
+    )
+
+    def __repr__(self):
+        return f"<Trajectory(mmsi={self.mmsi}, start_dt={self.start_dt}, end_dt={self.end_dt}, origin={self.origin}, destination={self.destination}, coordinates={self.coordinates})>"
 
 class Nav_Status(Base):
     """

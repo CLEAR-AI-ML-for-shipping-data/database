@@ -45,7 +45,8 @@ CREATE TABLE trajectories (
 	timestamps TIMESTAMP WITHOUT TIME ZONE[], 
 	speed_over_ground FLOAT[], 
 	navigational_status INTEGER[], 
-	PRIMARY KEY (trajectory_id, mmsi)
+	PRIMARY KEY (trajectory_id, mmsi), 
+	CONSTRAINT uix_mmsi_start_dt UNIQUE (mmsi, start_dt)
 )
 
 ;

@@ -7,3 +7,4 @@ cache
 log.txt
 .DS_Store
 logs
+.vscode
