@@ -2,15 +2,19 @@ import enum, traceback, datetime
 from sqlalchemy import create_engine, exc
 from sqlalchemy.orm.decl_api import declarative_base, DeclarativeBase
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Enum, Boolean, DateTime, Float, BigInteger, ARRAY, Interval
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Enum, Boolean, DateTime, Float, BigInteger, ARRAY, Interval, JSON, Table, MetaData
+from sqlalchemy.dialects.postgresql import insert, JSONB
 import pandas as pd
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql import text
-from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.schema import UniqueConstraint, Index
 from io import StringIO
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import from_shape
+from dataclasses import dataclass
+from typing import Optional, List, Dict, Any
+import uuid
+import time
 
 from logger import getLogger
 from utils import try_except
@@ -60,8 +64,9 @@ class AIS_Data(Base):
 
 class Trajectories(Base):
     __tablename__ = "trajectories"
-    trajectory_id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     mmsi = Column(String, primary_key=True)
+    route_id = Column(String)
     start_dt = Column(DateTime)
     end_dt =  Column(DateTime)
     origin = Column(Geometry('POINT'), nullable=True)
@@ -72,6 +77,8 @@ class Trajectories(Base):
     timestamps = Column(ARRAY(DateTime),nullable=True)
     speed_over_ground = Column(ARRAY(Float),nullable=True)
     navigational_status = Column(ARRAY(Integer),nullable=True)
+    course_over_ground = Column(ARRAY(Float),nullable=True, info="course_over_ground") 
+    heading = Column(ARRAY(Float), nullable=True)
 
     __table_args__ = (
         UniqueConstraint('mmsi', 'start_dt', name='uix_mmsi_start_dt'),
@@ -134,6 +141,40 @@ class Complete_Voyages(Base):
     destination_port_distance = Column(Float, nullable=True)
     ais_data = Column(Geometry('LINESTRING'),nullable=True)
 
+class MissingDataTable(Base):
+    __tablename__ = "missing_data"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mmsi = Column(String)
+    timestamps = Column(ARRAY(DateTime))  # List of timestamps around the gap
+    gap_type = Column(String)  # 'day' or 'month'
+    gap_duration = Column(String)  # ISO format duration string
+    filename = Column(String)
+    
+    __table_args__ = (
+        Index('idx_missing_data_mmsi_timestamps', 'mmsi', 'timestamps'),
+        Index('idx_missing_data_gap_type', 'gap_type'),
+        Index('idx_missing_data_timestamps', 'timestamps')
+    )
+
+@dataclass
+class MissingData:
+    mmsi: str
+    timestamps: List[str]  # List of timestamps around the gap
+    gap_type: str  # 'day' or 'month'
+    gap_duration: str  # ISO format duration string
+    filename: str
+
+    def to_db_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary format optimized for database storage"""
+        return {
+            'mmsi': self.mmsi,
+            'timestamps': self.timestamps,  # List of timestamps
+            'gap_type': self.gap_type,
+            'gap_duration': self.gap_duration,
+            'filename': self.filename
+        }
+
 class ClearAIS_DB():
     def __init__(self, database_url) -> None:
         self.engine = create_engine(database_url, echo = False)
@@ -153,6 +194,7 @@ class ClearAIS_DB():
         Voyage_Models.__table__.create(bind=self.engine, checkfirst=True)
         Voyage_Segments.__table__.create(bind=self.engine, checkfirst=True)
         Complete_Voyages.__table__.create(bind=self.engine, checkfirst=True)
+        MissingDataTable.__table__.create(bind=self.engine, checkfirst=True)
         
     @try_except(logger=logger)
     def save_schema(self,file_path="src/sql/schema.sql"):
@@ -181,38 +223,97 @@ class ClearAIS_DB():
         finally:
             session.close()
 
-    def bulk_insert(self, table, data, handle_conflicts=True):
-        """
-        Bulk insert data into the specified table.
-        
-        :param table: The SQLAlchemy model/table to insert data into.
-        :param data: List of dictionaries containing the data to be inserted.
-        """
-        session = self.Session()
-        try:
+    def table_exists(self, session, table_name):
+        """Check if a table exists in the database"""
+        return session.execute(text(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"
+        ), {"table_name": table_name}).scalar()
+
+    def create_dynamic_table(self, session, table_name, data):
+        """Create a dynamic table based on the data structure"""
+        if self.table_exists(session, table_name):
+            return Table(table_name, MetaData(), autoload_with=session.get_bind())
             
-            if handle_conflicts:
-                stmt = insert(table).values(data)
-                if table.__tablename__ == 'ais_data':
-                    stmt = stmt.on_conflict_do_nothing(
-                        index_elements=['ship_id', 'timestamp']
-                    )
-                if table.__tablename__ == 'ships':
-                    stmt = stmt.on_conflict_do_nothing(
-                        index_elements=['mmsi']
-                    )
-                session.execute(stmt)
+        # Get column types from the first row
+        first_row = data[0]
+        columns = []
+        
+        for col_name, value in first_row.items():
+            if isinstance(value, (list, tuple)):
+                # For arrays, use ARRAY type with appropriate element type
+                if value and isinstance(value[0], (int, float)):
+                    col_type = ARRAY(Float)
+                elif value and isinstance(value[0], datetime):
+                    col_type = ARRAY(DateTime)
+                else:
+                    col_type = ARRAY(String)
+            elif isinstance(value, datetime):
+                col_type = DateTime
+            elif isinstance(value, (int, float)):
+                col_type = Float
             else:
-                session.bulk_insert_mappings(table, data)
-     
-            session.commit()
-        except exc.SQLAlchemyError as e:
-            session.rollback()
-            logger.error(f"Error inserting data into {table.__tablename__}: {e}")
-            logger.exception('from bulk insert')
-        finally:
-            session.close()
-    
+                col_type = String
+            
+            columns.append(Column(col_name, col_type, nullable=True))
+        
+        # Create the table
+        dynamic_table = Table(
+            table_name, MetaData(),
+            Column('id', Integer, primary_key=True),
+            *columns
+        )
+        dynamic_table.create(session.get_bind(), checkfirst=True)
+        return dynamic_table
+
+    def bulk_insert(self, table, data, handle_conflicts=True, batch_size=10000):
+        """
+        Bulk insert data into the specified table with retry logic for deadlocks.
+        
+        Args:
+            table: Table name (string) or model class
+            data: List of dictionaries containing data to insert
+            handle_conflicts: Whether to handle conflicts (default: True)
+            batch_size: Size of batches to process (default: 10000)
+        """
+        if not data:
+            return True
+
+        max_retries = 3
+        retry_delay = 3
+
+        for attempt in range(max_retries):
+            try:
+                with self.Session() as session:
+                    session.execute(text("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"))
+                    
+                    for i in range(0, len(data), batch_size):
+                        batch = data[i:i + batch_size]
+                        
+                        if isinstance(table, str):
+                            # For dynamic tables, create the table if it doesn't exist
+                            dynamic_table = self.create_dynamic_table(session, table, batch)
+                            # Use SQLAlchemy's bulk insert with ON CONFLICT DO NOTHING
+                            stmt = insert(dynamic_table).on_conflict_do_nothing()
+                            session.execute(stmt, batch)
+                        else:
+                            # For model classes, use SQLAlchemy's bulk insert
+                            session.bulk_insert_mappings(table, batch)
+                        
+                        session.commit()
+                    
+                    return True
+                    
+            except Exception as e:
+                if "deadlock detected" in str(e).lower() and attempt < max_retries - 1:
+                    logger.warning(f"Deadlock detected, attempt {attempt + 1}/{max_retries}. Retrying...")
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                logger.error(f"Error in bulk_insert: {str(e)}")
+                logger.exception("Full traceback:")
+                raise
+                
+        return False
+
     def excecute(self, query):
         session = self.Session()
         try:
@@ -233,7 +334,47 @@ class ClearAIS_DB():
         df = pd.read_sql(query, conn)
         return df
     
+    def bulk_insert_ships(self, ships_data, batch_size=1000):
+        """
+        Efficiently insert ships data, ignoring any conflicts (duplicates).
+        
+        Args:
+            ships_data: List of ship data dictionaries
+            batch_size: Size of batches to process (default: 1000)
+        """
+        if not ships_data:
+            return
 
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                with self.Session() as session:
+                    # Set transaction isolation level to SERIALIZABLE
+                    session.execute(text("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"))
+                    
+                    # Process data in batches
+                    for i in range(0, len(ships_data), batch_size):
+                        batch = ships_data[i:i + batch_size]
+                        
+                        # Use SQLAlchemy's insert with ON CONFLICT DO NOTHING
+                        stmt = insert(Ships).on_conflict_do_nothing()
+                        session.execute(stmt, batch)
+                        session.commit()
+                    
+                    return True
+                    
+            except Exception as e:
+                if "deadlock detected" in str(e).lower() and attempt < max_retries - 1:
+                    logger.warning(f"Deadlock detected, attempt {attempt + 1}/{max_retries}. Retrying...")
+                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                    continue
+                logger.error(f"Error in bulk_insert_ships: {str(e)}")
+                logger.exception("Full traceback:")
+                raise
+                
+        return False
 
 if __name__=='__main__':
     POSTGRES_DB="gis"
@@ -246,4 +387,4 @@ if __name__=='__main__':
 
     bulk_inserter = ClearAIS_DB(database_url)
     bulk_inserter.create_tables(drop_existing=False)
-    bulk_inserter.save_schema()
+    bulk_inserter.save_schema() 

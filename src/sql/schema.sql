@@ -1,4 +1,17 @@
 
+CREATE TABLE missing_data (
+	id SERIAL NOT NULL, 
+	mmsi VARCHAR, 
+	timestamps TIMESTAMP WITHOUT TIME ZONE[], 
+	gap_type VARCHAR, 
+	gap_duration VARCHAR, 
+	filename VARCHAR, 
+	PRIMARY KEY (id)
+)
+
+;
+
+
 CREATE TABLE nav_status (
 	id SERIAL NOT NULL, 
 	code VARCHAR, 
@@ -33,8 +46,9 @@ CREATE TABLE ships (
 
 
 CREATE TABLE trajectories (
-	trajectory_id SERIAL NOT NULL, 
+	id SERIAL NOT NULL, 
 	mmsi VARCHAR NOT NULL, 
+	route_id VARCHAR, 
 	start_dt TIMESTAMP WITHOUT TIME ZONE, 
 	end_dt TIMESTAMP WITHOUT TIME ZONE, 
 	origin geometry(POINT,-1), 
@@ -45,7 +59,9 @@ CREATE TABLE trajectories (
 	timestamps TIMESTAMP WITHOUT TIME ZONE[], 
 	speed_over_ground FLOAT[], 
 	navigational_status INTEGER[], 
-	PRIMARY KEY (trajectory_id, mmsi), 
+	course_over_ground FLOAT[], 
+	heading FLOAT[], 
+	PRIMARY KEY (id, mmsi), 
 	CONSTRAINT uix_mmsi_start_dt UNIQUE (mmsi, start_dt)
 )
 
