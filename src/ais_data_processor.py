@@ -19,12 +19,12 @@ from sqlalchemy.schema import UniqueConstraint, MetaData
 from sqlalchemy import Column, Integer, String, ForeignKey, Date, Enum, Boolean, DateTime, Float, BigInteger, ARRAY, Interval, JSON, Table, MetaData
 
 from utils import find_files_in_folder, try_except
-from logger import getLogger
+from logger import getLogger, TqdmToLogger
 from multiprocessing import Process, Queue
 import signal
 import sys
 
-logger = getLogger(__file__)
+logger = getLogger(__file__,log_file_name='progress.log')
 
 csv_to_db_mapping = json.load(open("src/csv_to_db_mapping.json",'r'))
 
@@ -182,7 +182,7 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
             
             logger.info(f"Inserted final batch of {len(trajectories_list)} Trajectories")
 
-def process_file(file_path, year_month, trajectory_queue, missing_data_queue):
+def process_file(file_path, year_month, trajectory_queue):
     """Process a single CSV file and extract year-month from filename"""
     try:
         # Get total number of lines in file for progress bar
@@ -199,63 +199,13 @@ def process_file(file_path, year_month, trajectory_queue, missing_data_queue):
                 year_month=year_month, 
                 filename=file_path, 
                 trajectory_queue=trajectory_queue, 
-                missing_data_queue=missing_data_queue,
                 progress_bar=pbar
             )
         completed_files.add(file_path)
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {str(e)}")
 
-def process_missing_data(missing_data_queue, database_url):
-    """Process missing data and insert into database in batches"""
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    bulk_inserter = ClearAIS_DB(database_url)
-    batch_size = 10
-    current_batch = []
-    
-    try:
-        while True:
-            try:
-                # Get data from queue with timeout
-                data = missing_data_queue.get(timeout=1)
-                if data is None:  # Poison pill to stop the process
-                    break
-                
-                # Convert MissingData to dictionary format
-                missing_data_dict = {
-                    "mmsi": data.mmsi,
-                    "timestamps": data.timestamps,  # Already a list of datetime objects
-                    "gap_type": data.gap_type,
-                    "gap_duration": data.gap_duration,
-                    "filename": data.filename
-                }
-                current_batch.append(missing_data_dict)
-                
-                # Process batch when it reaches the size limit
-                if len(current_batch) >= batch_size:
-                    with bulk_inserter.Session() as session:
-                        bulk_inserter.bulk_insert(MissingDataTable, current_batch)
-                    current_batch = []
-                    
-            except queue.Empty:
-                # Queue is empty, check if we should continue
-                if processing_queue.empty() and len(completed_files) > 0:
-                    break
-                continue
-                
-    except Exception as e:
-        logger.error(f"Error in process_missing_data: {str(e)}")
-        logger.exception("Full traceback:")
-    finally:
-        # Process any remaining data
-        if current_batch:
-            with bulk_inserter.Session() as session:
-                bulk_inserter.bulk_insert(MissingDataTable, current_batch)
-        print("Missing data processing completed.")
-
-def split_trajectories(chunk, year_month, filename, trajectory_queue, missing_data_queue):
+def split_trajectories(chunk, year_month, filename, trajectory_queue):
     global temp_tracking_storage
 
     for mmsi, group in chunk.groupby('mmsi'):
@@ -318,44 +268,10 @@ def split_trajectories(chunk, year_month, filename, trajectory_queue, missing_da
             
             del temp_tracking_storage[mmsi]
 
-            ## missing data insertion code, to be removed later
-            # else:
-            #     index1 = np.where(large_gaps_months==True)
-            #     index2 = np.where(large_gaps_days==True)
-            #     missing_data_indices = list(chain.from_iterable(index1)) + list(chain.from_iterable(index2))
-                
-            #     for idx in missing_data_indices:
-            #         if idx < 5:  # Skip if we don't have enough data points before
-            #             continue
-                    
-            #         # Get timestamps before and after the gap (5 points before and after)
-            #         start_idx = max(0, idx - 5)
-            #         end_idx = min(len(traj_data), idx + 6)  # +6 to include the idx itself
-            #         timestamps = traj_data.iloc[start_idx:end_idx]['timestamp'].tolist()
-                    
-            #         # Convert pandas Timestamps to Python datetime objects
-            #         timestamps = [ts.strftime('%Y-%m-%d %H:%M:%S') for ts in timestamps]
-                    
-            #         # Determine gap type and duration
-            #         if idx in [i for i, x in enumerate(large_gaps_months) if x]:
-            #             gap_type = 'month'
-            #             gap_duration = 'P27D'  # ISO 8601 duration for 27 days
-            #         else:
-            #             gap_type = 'day'
-            #             gap_duration = 'P1D'   # ISO 8601 duration for 1 day
-                    
-            #         # Put missing data in queue
-            #         missing_data_queue.put(MissingData(
-            #             mmsi=mmsi,
-            #             timestamps=timestamps,
-            #             gap_type=gap_type,
-            #             gap_duration=gap_duration,
-            #             filename=filename
-            # ))
 
 @try_except(logger=logger)
 def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, filename=None, 
-                               trajectory_queue=None, missing_data_queue=None, progress_bar=None):
+                               trajectory_queue=None, progress_bar=None):
     """
     Generator to read and transform CSV data in chunks and collect unique navigational statuses.
     """
@@ -387,7 +303,7 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, f
             ais_data_cols = ['timestamp', 'mmsi', 'latitude', 'longitude', 'navigational_status', 'navigational_status_text', 'speed_over_ground', 'heading','course_over_ground','country_ais', 'destination']
             ais_data = chunk.filter(items=ais_data_cols).copy()
             
-            split_trajectories(ais_data, year_month, filename, trajectory_queue, missing_data_queue)
+            split_trajectories(ais_data, year_month, filename, trajectory_queue)
             
             # Update progress bar
             if progress_bar:
@@ -424,7 +340,7 @@ def sort_filenames_unixstyle(filenames:list):
 
     return sorted(filenames,key=natural_sort_key)
 
-def sort_file_names_by_year_month(filenames:list):
+def get_year_moth_from_filename(filename):
     date_pattern = re.compile(r'(\b(19\d{2}|20\d{2})[-_\.]?\d{2}[-_\.]?\d{2}|\b(19\d{2}|20\d{2})\d{6})')
 
     def extract_date(filename):
@@ -434,15 +350,22 @@ def sort_file_names_by_year_month(filenames:list):
             return parse(date_str, fuzzy=True)  
         except ValueError:
             pass
-        return None  
+        return None 
+    
+    date_obj = extract_date(filename)  
+    if date_obj:
+        year_month = f"{date_obj.year}_{date_obj.month:02d}" 
+    else:
+        year_month = "Unknown" 
+    
+    return year_month
+
+def sort_file_names_by_year_month(filenames:list):
+     
     temp_files_by_month = defaultdict(list)
 
     for file in filenames:
-        date_obj = extract_date(file)  
-        if date_obj:
-            year_month = f"{date_obj.year}_{date_obj.month:02d}" 
-        else:
-            year_month = "Unknown"  
+        year_month = get_year_moth_from_filename(file) 
 
         temp_files_by_month[year_month].append(file)
 
@@ -468,7 +391,6 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--datapath', type=str, default=folder_path, help='csv files directory')
     parser.add_argument('--db_url', type=str, default=database_url, help="Postgres database url")
-    parser.add_argument('--max_workers', type=int, default=4, help="Maximum number of parallel workers")
     args = parser.parse_args()
 
     path = args.datapath
@@ -480,10 +402,10 @@ if __name__=='__main__':
 
         # Create queues for inter-process communication
         trajectory_queue = Queue()
-        missing_data_queue = Queue()
 
         if os.path.isfile(path):
-            process_file(path, trajectory_queue, missing_data_queue)
+            year_month = get_year_moth_from_filename(path) 
+            process_file(path, year_month, trajectory_queue)
         else:
             csv_files = find_files_in_folder(path, extension=('.csv'))
             sorted_csv_files = sort_file_names_by_year_month(csv_files)
@@ -492,25 +414,21 @@ if __name__=='__main__':
             p1 = Process(target=insert_complete_trajectories_to_db, 
                         args=(trajectory_queue, database_url))
             p1.start()
-            
-            # Start the missing data processing process with database_url
-            p2 = Process(target=process_missing_data, 
-                        args=(missing_data_queue, database_url))
-            p2.start()
+
+            tqdm_logger = TqdmToLogger(logger=logger)
 
             # Create overall progress bar for all files
             total_files = sum(len(files) for files in sorted_csv_files.values())
-            with tqdm(total=total_files, desc="Overall Progress", unit="file") as pbar:
+            with tqdm(total=total_files, file=tqdm_logger, desc="Overall Progress", unit="file") as pbar:
                 for year_month, file_paths in sorted_csv_files.items():
                     for file_path in file_paths:
-                        process_file(file_path, year_month, trajectory_queue, missing_data_queue)
+                        process_file(file_path, year_month, trajectory_queue)
                         pbar.update(1)
-                        logger.info("done: " + str(file_path))
+                        logger.info("completed: " + str(file_path))
+              
 
             # Send poison pills to stop the processes
             trajectory_queue.put(None)
-            missing_data_queue.put(None)
 
             # Wait for the processes to finish
             p1.join()
-            p2.join() 
