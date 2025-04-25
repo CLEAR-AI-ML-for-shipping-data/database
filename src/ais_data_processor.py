@@ -72,6 +72,8 @@ def create_monthly_table(session, year_month):
             Column('destination', Geometry('POINT', 4326)),
             Column('count', Integer),
             Column('duration', Interval),
+            Column('missing_data', Boolean),
+            Column('missing_data_info', String,nullable=True),
             Column('coordinates', Geometry('LINESTRING', 4326)),
             Column('timestamps', ARRAY(DateTime)),
             Column('speed_over_ground', ARRAY(Float)),
@@ -118,7 +120,7 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
                 
                 if ais_data_len > 0:
                     for _ in range(ais_data_len):
-                        (traj, route_id, year_month) = ais_data.pop()
+                        (traj, route_id, year_month, missing_data_bool, missing_data_info ) = ais_data.pop()
                         first = traj.iloc[0]
                         last = traj.iloc[-1]
                         coordinates = LineString(list(zip(traj['longitude'], traj['latitude']))).wkt
@@ -131,6 +133,8 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
                             "destination": create_geom_from_latlon(last.latitude, last.longitude),
                             "count": traj.shape[0],
                             "duration": last.timestamp - first.timestamp,
+                            "missing_data": missing_data_bool,
+                            "missing_data_info": json.dumps(missing_data_info),
                             "coordinates": coordinates,
                             "timestamps": traj.timestamp,
                             "speed_over_ground": traj.speed_over_ground,
@@ -273,61 +277,78 @@ def split_trajectories(chunk, year_month, filename, trajectory_queue, missing_da
             large_gaps_days = diff > gap_threshold_days
             large_gaps_months = diff > gap_threshold_months
 
-            if not any(large_gaps_months):
-                middle_index = len(traj_data) // 2
-                middle_df = traj_data.iloc[middle_index-10:middle_index+10]
-                middle_avg_speed = middle_df['speed_over_ground'].mean()
-                middle_nav_status = middle_df['navigational_status'].mode()[0]
+            missing_data_bool = any(large_gaps_days) or any(large_gaps_months)
 
-                last_rows = traj_data.tail(20)
-                mean_speed = last_rows['speed_over_ground'].mean()
-                median_nav_status = last_rows['navigational_status'].mode()[0]
+            # if not any(large_gaps_months):
+            middle_index = len(traj_data) // 2
+            middle_df = traj_data.iloc[middle_index-10:middle_index+10]
+            middle_avg_speed = middle_df['speed_over_ground'].mean()
+            middle_nav_status = middle_df['navigational_status'].mode()[0]
 
-                if nav_status_set[middle_nav_status] not in NAV_STATUS_STATIONARY and middle_avg_speed > UPPER_SOG_THRESHOLD:
-                    if nav_status_set[median_nav_status] in NAV_STATUS_STATIONARY and mean_speed < SOG_THRESHOLD:
-                        voyage_segment_end = True
+            last_rows = traj_data.tail(20)
+            mean_speed = last_rows['speed_over_ground'].mean()
+            median_nav_status = last_rows['navigational_status'].mode()[0]
 
-                route_id = route_id_tracker[mmsi]
-                if voyage_segment_end:
-                    del route_id_tracker[mmsi]
+            if nav_status_set[middle_nav_status] not in NAV_STATUS_STATIONARY and middle_avg_speed > UPPER_SOG_THRESHOLD:
+                if nav_status_set[median_nav_status] in NAV_STATUS_STATIONARY and mean_speed < SOG_THRESHOLD:
+                    voyage_segment_end = True
 
-                # Put trajectory data in queue
-                trajectory_queue.put((mmsi, [(traj_data, route_id, year_month)]))
-                del temp_tracking_storage[mmsi]
+            route_id = route_id_tracker[mmsi]
+            if voyage_segment_end:
+                del route_id_tracker[mmsi]
 
-            else:
-                index1 = np.where(large_gaps_months==True)
-                index2 = np.where(large_gaps_days==True)
-                missing_data_indices = list(chain.from_iterable(index1)) + list(chain.from_iterable(index2))
+            index1 = np.where(large_gaps_months==True)
+            index2 = np.where(large_gaps_days==True)
+            missing_data_indices = list(chain.from_iterable(index1)) + list(chain.from_iterable(index2))
+
+            missing_data_info = {}
+            if missing_data_bool:
+                if any(large_gaps_months):
+                    gap_duration = 'more than 27 day' 
+                else:
+                    gap_duration = 'more than a day'
+
+                missing_data_info = {'indices': missing_data_indices, "gap_duration":gap_duration}
+
+            # Put trajectory data in queue
+            trajectory_queue.put((mmsi, [(traj_data, route_id, year_month,missing_data_bool, missing_data_info )]))
+            
+            del temp_tracking_storage[mmsi]
+
+            ## missing data insertion code, to be removed later
+            # else:
+            #     index1 = np.where(large_gaps_months==True)
+            #     index2 = np.where(large_gaps_days==True)
+            #     missing_data_indices = list(chain.from_iterable(index1)) + list(chain.from_iterable(index2))
                 
-                for idx in missing_data_indices:
-                    if idx < 5:  # Skip if we don't have enough data points before
-                        continue
+            #     for idx in missing_data_indices:
+            #         if idx < 5:  # Skip if we don't have enough data points before
+            #             continue
                     
-                    # Get timestamps before and after the gap (5 points before and after)
-                    start_idx = max(0, idx - 5)
-                    end_idx = min(len(traj_data), idx + 6)  # +6 to include the idx itself
-                    timestamps = traj_data.iloc[start_idx:end_idx]['timestamp'].tolist()
+            #         # Get timestamps before and after the gap (5 points before and after)
+            #         start_idx = max(0, idx - 5)
+            #         end_idx = min(len(traj_data), idx + 6)  # +6 to include the idx itself
+            #         timestamps = traj_data.iloc[start_idx:end_idx]['timestamp'].tolist()
                     
-                    # Convert pandas Timestamps to Python datetime objects
-                    timestamps = [ts.strftime('%Y-%m-%d %H:%M:%S') for ts in timestamps]
+            #         # Convert pandas Timestamps to Python datetime objects
+            #         timestamps = [ts.strftime('%Y-%m-%d %H:%M:%S') for ts in timestamps]
                     
-                    # Determine gap type and duration
-                    if idx in [i for i, x in enumerate(large_gaps_months) if x]:
-                        gap_type = 'month'
-                        gap_duration = 'P27D'  # ISO 8601 duration for 27 days
-                    else:
-                        gap_type = 'day'
-                        gap_duration = 'P1D'   # ISO 8601 duration for 1 day
+            #         # Determine gap type and duration
+            #         if idx in [i for i, x in enumerate(large_gaps_months) if x]:
+            #             gap_type = 'month'
+            #             gap_duration = 'P27D'  # ISO 8601 duration for 27 days
+            #         else:
+            #             gap_type = 'day'
+            #             gap_duration = 'P1D'   # ISO 8601 duration for 1 day
                     
-                    # Put missing data in queue
-                    missing_data_queue.put(MissingData(
-                        mmsi=mmsi,
-                        timestamps=timestamps,
-                        gap_type=gap_type,
-                        gap_duration=gap_duration,
-                        filename=filename
-                    ))
+            #         # Put missing data in queue
+            #         missing_data_queue.put(MissingData(
+            #             mmsi=mmsi,
+            #             timestamps=timestamps,
+            #             gap_type=gap_type,
+            #             gap_duration=gap_duration,
+            #             filename=filename
+            # ))
 
 @try_except(logger=logger)
 def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, filename=None, 
@@ -433,7 +454,7 @@ def sort_file_names_by_year_month(filenames:list):
 if __name__=='__main__':
     POSTGRES_DB="gis"
     POSTGRES_USER="clear"
-    POSTGRES_PASSWORD="clear" # "a4DaW96L85HU"
+    POSTGRES_PASSWORD="a4DaW96L85HU"
     POSTGRES_PORT=5432
     POSTGRES_HOST = "localhost"
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
@@ -450,7 +471,7 @@ if __name__=='__main__':
     path = args.datapath
     if os.path.exists(path):
         bulk_inserter = ClearAIS_DB(database_url)
-        bulk_inserter.create_tables(drop_existing=True)
+        bulk_inserter.create_tables(drop_existing=False)
         bulk_inserter.save_schema()
 
         # Create queues for inter-process communication
@@ -480,6 +501,7 @@ if __name__=='__main__':
                     for file_path in file_paths:
                         process_file(file_path, year_month, trajectory_queue, missing_data_queue)
                         pbar.update(1)
+                        logger.info("done: " + str(file_path))
 
             # Send poison pills to stop the processes
             trajectory_queue.put(None)

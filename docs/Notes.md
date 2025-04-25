@@ -59,3 +59,22 @@ Count:29421289
 - wait till the trajectory is complete before the data is pushed into the datbase
 - compress the trajectory
 - split database into months
+
+
+
+
+## NAS info:
+IP: 172.25.113.94
+mac address: 90:09:D0:65:9B:C5
+
+device: ClearNAS
+admin: clear_admin
+pass: TT5N3c8u6L
+
+
+sudo mount -v -t cifs //172.25.113.94/ClearData /mnt/nas -osec=ntlmv2,username=clear_admin,password=TT5N3c8u6L,domain=ClearNAS,vers=3.0
+
+sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,username=clear_admin,password=TT5N3c8u6L,domain=ClearNAS,vers=3.0,uid=999,file_mode=0750,dir_mode=0750
+
+
+ssh -f -N -T -R localhost:5050:localhost:5050 cit@10.7.0.0 -p 8082

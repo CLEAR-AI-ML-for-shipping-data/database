@@ -29,17 +29,9 @@ Click on the links to open the locally served web pages
     - pip install  -r requirements.txt
 
 
-## Load data into database
+## Compute trajectories and load them into database
 - Start the local db container `docker-compose -f docker-compose.db.yml up -d`
-- To insert data into database: Run `python3 src/insert_ais_data.py --datapath path/to/csv_files`
-
-## Compute voyage segments and load into voyage segments table in database
-- Run `python3 src/compute_voyage_segments.py`
-
-## Fetch voyag segments data from database
-- Use `python3 src/fetch_voyage_segments.py`
-- modify this code to add your logic 
-- to save to fetched data to file, use `python3 src/fetch_voyage_segments.py --save`
+- To insert data into database: Run `python3 src/ais_data_processor.py--datapath path/to/csv_files`
 
 
 ### marp
@@ -115,18 +107,3 @@ erDiagram
 
 ```
 
-## NAS info:
-IP: 172.25.113.94
-mac address: 90:09:D0:65:9B:C5
-
-device: ClearNAS
-admin: clear_admin
-pass: TT5N3c8u6L
-
-
-sudo mount -v -t cifs //172.25.113.94/ClearData /mnt/nas -osec=ntlmv2,username=clear_admin,password=TT5N3c8u6L,domain=ClearNAS,vers=3.0
-
-sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,username=clear_admin,password=TT5N3c8u6L,domain=ClearNAS,vers=3.0,uid=999,file_mode=0750,dir_mode=0750
-
-
-ssh -f -N -T -R localhost:5050:localhost:5050 cit@10.7.0.0 -p 8082
