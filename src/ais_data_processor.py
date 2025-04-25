@@ -267,6 +267,7 @@ def split_trajectories(chunk, year_month, filename, trajectory_queue, missing_da
                 route_id_tracker[mmsi] = generate_route_id()
             temp_tracking_storage[mmsi] = group
 
+        # TODO: check the limit and also deal with shorter segments
         if temp_tracking_storage[mmsi].shape[0] > 500:
             traj_data = temp_tracking_storage[mmsi]
             diff = traj_data['timestamp'].diff()
@@ -297,16 +298,18 @@ def split_trajectories(chunk, year_month, filename, trajectory_queue, missing_da
             if voyage_segment_end:
                 del route_id_tracker[mmsi]
 
-            index1 = np.where(large_gaps_months==True)
-            index2 = np.where(large_gaps_days==True)
-            missing_data_indices = list(chain.from_iterable(index1)) + list(chain.from_iterable(index2))
-
+            
             missing_data_info = {}
             if missing_data_bool:
                 if any(large_gaps_months):
                     gap_duration = 'more than 27 day' 
                 else:
                     gap_duration = 'more than a day'
+
+                index1 = np.where(large_gaps_months==True)
+                index2 = np.where(large_gaps_days==True)
+                missing_data_indices = list(chain.from_iterable(index1)) + list(chain.from_iterable(index2))
+                missing_data_indices  = [val.item() for val in missing_data_indices]
 
                 missing_data_info = {'indices': missing_data_indices, "gap_duration":gap_duration}
 
@@ -454,7 +457,7 @@ def sort_file_names_by_year_month(filenames:list):
 if __name__=='__main__':
     POSTGRES_DB="gis"
     POSTGRES_USER="clear"
-    POSTGRES_PASSWORD="a4DaW96L85HU"
+    POSTGRES_PASSWORD= "clear" #"a4DaW96L85HU"
     POSTGRES_PORT=5432
     POSTGRES_HOST = "localhost"
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
@@ -469,6 +472,7 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     path = args.datapath
+    database_url = args.db_url
     if os.path.exists(path):
         bulk_inserter = ClearAIS_DB(database_url)
         bulk_inserter.create_tables(drop_existing=False)

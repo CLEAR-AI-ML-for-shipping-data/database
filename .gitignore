@@ -8,3 +8,4 @@ log.txt
 .DS_Store
 logs
 .vscode
+temp_split_*

@@ -189,12 +189,13 @@ class ClearAIS_DB():
         # Base.metadata.create_all(self.engine)
         Ships.__table__.create(bind=self.engine, checkfirst=True)
         Nav_Status.__table__.create(bind=self.engine, checkfirst=True)
-        Trajectories.__table__.create(bind=self.engine, checkfirst=True)
-        AIS_Data.__table__.create(bind=self.engine, checkfirst=True)
-        Voyage_Models.__table__.create(bind=self.engine, checkfirst=True)
-        Voyage_Segments.__table__.create(bind=self.engine, checkfirst=True)
-        Complete_Voyages.__table__.create(bind=self.engine, checkfirst=True)
-        MissingDataTable.__table__.create(bind=self.engine, checkfirst=True)
+        # TODO: maybe add complete trajecteries table later, or merged trajectories table
+        # Trajectories.__table__.create(bind=self.engine, checkfirst=True)
+        # AIS_Data.__table__.create(bind=self.engine, checkfirst=True)
+        # Voyage_Models.__table__.create(bind=self.engine, checkfirst=True)
+        # Voyage_Segments.__table__.create(bind=self.engine, checkfirst=True)
+        # Complete_Voyages.__table__.create(bind=self.engine, checkfirst=True)
+        # MissingDataTable.__table__.create(bind=self.engine, checkfirst=True)
         
     @try_except(logger=logger)
     def save_schema(self,file_path="src/sql/schema.sql"):

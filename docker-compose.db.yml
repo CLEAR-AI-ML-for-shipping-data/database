@@ -35,19 +35,19 @@ services:
     depends_on:
       - postgis
   
-  martin:
-    image: ghcr.io/maplibre/martin:latest
-    container_name: martin_tileserver
-    restart: unless-stopped
-    ports:
-      - 0.0.0.0:${MARTIN_PORT}:3000
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}
+  # martin:
+  #   image: ghcr.io/maplibre/martin:latest
+  #   container_name: martin_tileserver
+  #   restart: unless-stopped
+  #   ports:
+  #     - 0.0.0.0:${MARTIN_PORT}:3000
+  #   environment:
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}
     
-    networks:
-      - gis-net
-    depends_on:
-      - postgis
+  #   networks:
+  #     - gis-net
+  #   depends_on:
+  #     - postgis
     
   pgadmin:
     container_name: pgadmin4_container
@@ -66,18 +66,18 @@ services:
     depends_on:
       - postgis
 
-  swagger:
-    image: swaggerapi/swagger-ui:latest
-    container_name: swagger-ui
-    ports:
-        - ${SWAGGER_PORT}:8080
-    environment:
-        API_URL: http://127.0.0.1:${POSTGREST_PORT}/      
-    restart: unless-stopped
-    networks:
-      - gis-net
-    depends_on:
-      - postgrest
+  # swagger:
+  #   image: swaggerapi/swagger-ui:latest
+  #   container_name: swagger-ui
+  #   ports:
+  #       - ${SWAGGER_PORT}:8080
+  #   environment:
+  #       API_URL: http://127.0.0.1:${POSTGREST_PORT}/      
+  #   restart: unless-stopped
+  #   networks:
+  #     - gis-net
+  #   depends_on:
+  #     - postgrest
 
 # Uncomment this if you want to persist the data.
 volumes:
