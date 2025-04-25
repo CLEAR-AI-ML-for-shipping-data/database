@@ -60,3 +60,26 @@ def getLogger(logger_name, log_file_name='common.log'):
     logger = init_file_handler(logger,log_file_path,formatter)
 
     return logger
+
+# --- Tqdm Logger Redirect ---
+class TqdmToLogger:
+    def __init__(self, logger, level=logging.INFO):
+        self.logger = logger
+        self.level = level
+        self.buf = ''
+
+    def write(self, message):
+        message = message.strip()
+        if message:
+            self.logger.log(self.level, message)
+
+    def flush(self):
+        pass
+
+def test_tqdmtologger():
+    import tqdm
+    logger = getLogger("test")
+    tqdm_logger = TqdmToLogger(logger)
+
+    for i in tqdm(range(20), file=tqdm_logger, desc="Processing"):
+        time.sleep(0.1)

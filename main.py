@@ -25,10 +25,10 @@ def split_files(folder_path, num_splits):
 
 def process_split(args):
     """Process a single split of files"""
-    split_files, split_num, total_splits, db_url, max_workers = args
+    split_files, split_num, total_splits, db_url = args
     
     # Create temporary folder for this split
-    temp_folder = f"temp_split_{split_num}"
+    temp_folder = f"temp/temp_split_{split_num}"
     os.makedirs(temp_folder, exist_ok=True)
     
     # Create symbolic links to files in temp folder
@@ -43,8 +43,7 @@ def process_split(args):
         "python3", 
         "src/ais_data_processor.py",
         "--datapath", temp_folder,
-        "--db_url", db_url,
-        "--max_workers", str(max_workers)
+        "--db_url", db_url
     ]
     
     # Create progress bar description
@@ -76,8 +75,6 @@ def main():
     parser.add_argument('--folder', type=str, required=True, help='Input folder containing CSV files')
     parser.add_argument('--splits', type=int, default=4, help='Number of splits to create')
     parser.add_argument('--db_url', type=str, required=True, help='Database URL')
-    parser.add_argument('--workers_per_split', type=int, default=2, 
-                      help='Number of workers for each split')
     
     args = parser.parse_args()
     
@@ -86,22 +83,18 @@ def main():
     
     # Prepare arguments for each split
     process_args = [
-        (split, i+1, len(splits), args.db_url, args.workers_per_split)
+        (split, i+1, len(splits), args.db_url)
         for i, split in enumerate(splits)
     ]
-    
-    # Create progress bars for overall progress
-    # with tqdm(total=len(splits), desc="Overall Progress") as pbar:
-    #     # Process splits in parallel
+
     with ProcessPoolExecutor(max_workers=len(splits)) as executor:
-        # Submit all processes
+    
         futures = [executor.submit(process_split, args) for args in process_args]
-        
-        # Monitor completion
+  
         for future in futures:
             split_num, return_code = future.result()
             if return_code == 0:
-                # pbar.update(1)
+            
                 print(f"Split {split_num} completed with return code {return_code}")
             else:
                 print(f"Split {split_num} failed with return code {return_code}")

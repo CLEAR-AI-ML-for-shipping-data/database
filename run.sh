@@ -9,5 +9,4 @@ database_url="postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POST
 python3 main.py \
     --folder "data/AIS 2023 SFV" \
     --splits 3 \
-    --db_url ${database_url} \
-    --workers_per_split 2
+    --db_url ${database_url} 
