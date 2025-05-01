@@ -380,7 +380,7 @@ def sort_file_names_by_year_month(filenames:list):
 if __name__=='__main__':
     POSTGRES_DB="gis"
     POSTGRES_USER="clear"
-    POSTGRES_PASSWORD= "clear" #"a4DaW96L85HU"
+    POSTGRES_PASSWORD= "a4DaW96L85HU"
     POSTGRES_PORT=5432
     POSTGRES_HOST = "localhost"
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"

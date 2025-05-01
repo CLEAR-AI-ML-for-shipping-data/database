@@ -1,25 +1,75 @@
 #!/usr/bin/env python3
-import os
+import os, re
 import argparse
 from pathlib import Path
 import math
 import subprocess
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
+from itertools import chain
+from dateutil.parser import parse
+from collections import defaultdict, OrderedDict
+
+def sort_filenames_unixstyle(filenames:list):
+    def natural_sort_key(filename):
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', filename)]
+
+    return sorted(filenames,key=natural_sort_key)
+
+def get_year_moth_from_filename(filename):
+    date_pattern = re.compile(r'(\b(19\d{2}|20\d{2})[-_\.]?\d{2}[-_\.]?\d{2}|\b(19\d{2}|20\d{2})\d{6})')
+
+    def extract_date(filename):
+        matches = date_pattern.findall(filename)
+        date_str = re.sub(r'[-/_]', ' ', matches[0][0])  
+        try:
+            return parse(date_str, fuzzy=True)  
+        except ValueError:
+            pass
+        return None 
+    
+    date_obj = extract_date(filename)  
+    if date_obj:
+        year_month = f"{date_obj.year}_{date_obj.month:02d}" 
+    else:
+        year_month = "Unknown" 
+    
+    return year_month
+
+def sort_file_names_by_year_month(filenames:list):
+     
+    temp_files_by_month = defaultdict(list)
+
+    for file in filenames:
+        year_month = get_year_moth_from_filename(file) 
+
+        temp_files_by_month[year_month].append(file)
+
+    sorted_year_months = sorted(temp_files_by_month, key=lambda ym: tuple(map(int, ym.split('-'))) if ym != "Unknown" else (float('inf'),))
+
+    sorted_file_list = OrderedDict()
+    for year_month in sorted_year_months:
+        sorted_file_list[year_month] =  sort_filenames_unixstyle(temp_files_by_month[year_month])
+
+    return sorted_file_list
 
 def split_files(folder_path, num_splits):
     """Split files in the folder into approximately equal groups"""
     # Get all CSV files
-    files = list(Path(folder_path).glob('**/*.csv'))
+    csv_files = [str(p) for p in Path(folder_path).glob('**/*.csv')]
+
+    sorted_csv_files = sort_file_names_by_year_month(csv_files)
     
     # Calculate files per split
-    files_per_split = math.ceil(len(files) / num_splits)
+    files_per_split = math.ceil(len(sorted_csv_files) / num_splits)
     
+    ss = list(sorted_csv_files.values())
     # Create splits
     splits = []
-    for i in range(0, len(files), files_per_split):
-        split = files[i:i + files_per_split]
-        splits.append([str(f) for f in split])
+    for i in range(0, len(sorted_csv_files), files_per_split):
+        split = ss[i:i + files_per_split]
+        
+        splits.append(list(chain.from_iterable(split)))
     
     return splits
 
@@ -54,7 +104,8 @@ def process_split(args):
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        universal_newlines=True
+        universal_newlines=True,
+        shell=True
     )
     
     # Monitor the process
@@ -71,10 +122,11 @@ def process_split(args):
     return split_num, return_code
 
 def main():
+    folder_path = 'data/AIS 2023 SFV'
     parser = argparse.ArgumentParser(description='Split and process AIS data files')
-    parser.add_argument('--folder', type=str, required=True, help='Input folder containing CSV files')
+    parser.add_argument('--folder', type=str,  default=folder_path, help='Input folder containing CSV files')
     parser.add_argument('--splits', type=int, default=4, help='Number of splits to create')
-    parser.add_argument('--db_url', type=str, required=True, help='Database URL')
+    parser.add_argument('--db_url', type=str, help='Database URL')
     
     args = parser.parse_args()
     
