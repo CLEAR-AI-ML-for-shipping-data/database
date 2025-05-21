@@ -3,17 +3,26 @@
 set -e  # Exit on error
 set -u  # Treat unset variables as errors
 
-POSTGRES_DB="gis"
-POSTGRES_USER="clear"
-POSTGRES_PASSWORD="a4DaW96L85HU"
-POSTGRES_PORT=5432
-POSTGRES_HOST="localhost"
-database_url="postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+NUM_SPLITS=4 # for 100 csv 4 splits would be 25 files per split processed in parallel
 
-
-INPUT_DIR="data/AIS 2023 SFV"
-NUM_SPLITS=4
 PYTHON_SCRIPT="src/ais_data_processor.py"
+INPUT_DIR="${1:-}"
+
+# Check if input was provided
+if [ -z "$INPUT_DIR" ]; then
+    echo "Usage: $0 /path/to/csv_files_directory"
+    exit 1
+fi
+
+# Check if it's a valid directory
+if [ ! -d "$INPUT_DIR" ]; then
+    echo "Error: '$INPUT_DIR' is not a valid directory."
+    exit 1
+fi
+
+echo "Processing directory: $INPUT_DIR"
+
+
 
 # Store PIDs of background jobs
 PIDS=()
@@ -75,7 +84,7 @@ for ((i=0; i<NUM_SPLITS; i++)); do
     # Run the Python script on the chunk
    
     echo "Running Python script on $TEMP_DIR"
-    python3 "$PYTHON_SCRIPT" --datapath "$TEMP_DIR" --db_url "$database_url" &
+    python3 "$PYTHON_SCRIPT" --datapath "$TEMP_DIR" &
     PIDS+=($!)
 done
 

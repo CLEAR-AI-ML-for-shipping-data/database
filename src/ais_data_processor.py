@@ -12,7 +12,7 @@ from shapely.geometry import Point, LineString
 import numpy as np
 from itertools import chain
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import queue
+import queue, dotenv
 from pathlib import Path
 from database_schema import ClearAIS_DB, Ships, AIS_Data, Nav_Status, Trajectories, MissingData, MissingDataTable
 from sqlalchemy.schema import UniqueConstraint, MetaData
@@ -194,11 +194,11 @@ def process_file(file_path, year_month, trajectory_queue):
         with tqdm(total=total_chunks, desc=f"Processing {os.path.basename(file_path)}", 
                  unit="chunk", leave=False) as pbar:
             read_and_transform_csv_chunk(
-                file_path=file_path, 
-                chunk_size=chunk_size, 
-                year_month=year_month, 
-                filename=file_path, 
-                trajectory_queue=trajectory_queue, 
+                file_path=file_path,
+                chunk_size=chunk_size,
+                year_month=year_month,
+                filename=file_path,
+                trajectory_queue=trajectory_queue,
                 progress_bar=pbar
             )
         completed_files.add(file_path)
@@ -286,8 +286,13 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, f
             chunk = chunk.rename(columns=csv_to_db_mapping)
             chunk.dropna(subset=['type_of_ship_and_cargo','type_of_ship', 'type_of_cargo','draught'], inplace=True)
             chunk = chunk.astype({'mmsi':str, 'imo':str, 'type_of_ship':int, 'type_of_cargo':int, 'type_of_ship_and_cargo':int})
-            chunk['timestamp'] = pd.to_datetime(chunk['timestamp'].str.replace(r'\s+[A-Za-z]+$', '', regex=True), format='%d %b %Y %H:%M:%S')
+            
+            chunk['timestamp'] = pd.to_datetime(chunk['timestamp'].str.replace(r'\.\d{1,6}|\s+[A-Za-z]+$', '', regex=True), format='%d %b %Y %H:%M:%S')
             chunk['timestamp'] = chunk['timestamp'].dt.tz_localize('Europe/Berlin')
+
+            if year_month is None:
+                date_obj = chunk['timestamp'].iloc[:-1][0]
+                year_month = f"{date_obj.year}_{date_obj.month:02d}" 
 
             nav_status_set.update(pd.Series(chunk['navigational_status_text'].values, index=chunk['navigational_status']).to_dict())
             
@@ -313,26 +318,6 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, f
             logger.error(f"Error processing chunk from {file_path}: {str(e)}")
             logger.exception("Full traceback:")
             continue
-
-def remove_existing_ships(session, ships_data):
-    """
-    Function to get a map of mmsi to ship_id.
-    
-    :param session: The SQLAlchemy session object.
-    :param ships_data: List of ship data dictionaries.
-    :return: List of new ships data.
-    """
-    try:
-        # Use a single query to get all existing MMSIs
-        existing_mmsis = set(session.query(Ships.mmsi).filter(Ships.mmsi.in_([ship['mmsi'] for ship in ships_data])).all())
-        existing_mmsis = {mmsi[0] for mmsi in existing_mmsis}
-        
-        # Filter ships_data to only include new mmsi
-        return [ship for ship in ships_data if ship['mmsi'] not in existing_mmsis]
-    except Exception as e:
-        logger.error(f"Error in remove_existing_ships: {str(e)}")
-        logger.exception("Full traceback:")
-        return ships_data  # Return all ships data if there's an error
 
 def sort_filenames_unixstyle(filenames:list):
     def natural_sort_key(filename):
@@ -378,18 +363,22 @@ def sort_file_names_by_year_month(filenames:list):
     return sorted_file_list
 
 if __name__=='__main__':
-    POSTGRES_DB="gis"
-    POSTGRES_USER="clear"
-    POSTGRES_PASSWORD= "a4DaW96L85HU"
-    POSTGRES_PORT=5432
-    POSTGRES_HOST = "localhost"
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    dotenv.load_dotenv(dotenv_path=env_path)
+
+    POSTGRES_DB= os.getenv("POSTGRES_DB","gis") 
+    POSTGRES_USER=os.getenv("POSTGRES_USER","clear") 
+    POSTGRES_PASSWORD=os.getenv("POSTGRES_PASSWORD","clear") 
+    POSTGRES_PORT=int(os.getenv("POSTGRES_PORT",5432))
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST","localhost") 
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
-    file_path = 'data/999Baltic7204999-20230615-72.csv'
+    file_path = 'data/AIS 2023 SFV/989Baltic4071989-20230201-0.csv'
+    file_path = "data/test.csv"
     folder_path = 'data/AIS 2023 SFV'
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--datapath', type=str, default=folder_path, help='csv files directory')
+    parser.add_argument('--datapath', type=str, default=file_path, help='csv files directory')
     parser.add_argument('--db_url', type=str, default=database_url, help="Postgres database url")
     args = parser.parse_args()
 
@@ -404,7 +393,7 @@ if __name__=='__main__':
         trajectory_queue = Queue()
 
         if os.path.isfile(path):
-            year_month = get_year_moth_from_filename(path) 
+            year_month = None
             process_file(path, year_month, trajectory_queue)
         else:
             csv_files = find_files_in_folder(path, extension=('.csv'))
