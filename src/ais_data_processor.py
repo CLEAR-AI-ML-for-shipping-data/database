@@ -182,12 +182,12 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
             
             logger.info(f"Inserted final batch of {len(trajectories_list)} Trajectories")
 
-def process_file(file_path, year_month, trajectory_queue):
+def process_file(file_path, year_month, trajectory_queue,chunk_size = 100000):
     """Process a single CSV file and extract year-month from filename"""
     try:
         # Get total number of lines in file for progress bar
         total_lines = sum(1 for _ in open(file_path, 'r')) - 1  # Subtract header line
-        chunk_size = 100000
+        chunk_size = chunk_size
         total_chunks = (total_lines + chunk_size - 1) // chunk_size
         
         # Create progress bar for this file
@@ -410,17 +410,19 @@ if __name__=='__main__':
         # Create queues for inter-process communication
         trajectory_queue = Queue()
 
+         # Start the trajectory insertion process
+        p1 = Process(target=insert_complete_trajectories_to_db, 
+                    args=(trajectory_queue, database_url))
+        p1.start()
+
         if os.path.isfile(path):
             year_month = None
-            process_file(path, year_month, trajectory_queue)
+            process_file(path, year_month, trajectory_queue,chunk_size=100000)
         else:
             csv_files = find_files_in_folder(path, extension=('.csv'))
             sorted_csv_files = sort_file_names_by_year_month(csv_files)
             
-            # Start the trajectory insertion process
-            p1 = Process(target=insert_complete_trajectories_to_db, 
-                        args=(trajectory_queue, database_url))
-            p1.start()
+           
 
             tqdm_logger = TqdmToLogger(logger=logger)
 
@@ -437,5 +439,5 @@ if __name__=='__main__':
             # Send poison pills to stop the processes
             trajectory_queue.put(None)
 
-            # Wait for the processes to finish
-            p1.join()
+        # Wait for the processes to finish
+        p1.join()
