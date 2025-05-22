@@ -287,8 +287,22 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, f
             chunk.dropna(subset=['type_of_ship_and_cargo','type_of_ship', 'type_of_cargo','draught'], inplace=True)
             chunk = chunk.astype({'mmsi':str, 'imo':str, 'type_of_ship':int, 'type_of_cargo':int, 'type_of_ship_and_cargo':int})
             
-            chunk['timestamp'] = pd.to_datetime(chunk['timestamp'].str.replace(r'\.\d{1,6}|\s+[A-Za-z]+$', '', regex=True), format='%d %b %Y %H:%M:%S')
-            chunk['timestamp'] = chunk['timestamp'].dt.tz_localize('Europe/Berlin')
+            ts = chunk['timestamp'].str.replace(r'\.\d{1,6}|\s+[A-Za-z]+$', '', regex=True)
+            month_map = {
+                r'\bmaj\b': 'May', r'\bokt\b': 'Oct',
+                r'\bMaj\b': 'May', r'\bOkt\b': 'Oct'
+            }
+            # Replace month names to english
+            ts = ts.replace(month_map, regex=True)
+
+            chunk['timestamp'] = pd.to_datetime(ts, format='%d %b %Y %H:%M:%S')
+
+
+            chunk['timestamp'] = chunk['timestamp'].dt.tz_localize(
+                'Europe/Berlin',
+                ambiguous=False,       # or use False (standard time), True (DST), or 'NaT' to mark ambiguous
+                nonexistent='shift_forward'  # or 'NaT', 'shift_forward', 'shift_backward'
+            )
 
             if year_month is None:
                 date_obj = chunk['timestamp'].iloc[:-1][0]
