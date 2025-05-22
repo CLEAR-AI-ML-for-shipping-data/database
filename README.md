@@ -86,6 +86,7 @@ sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,usernam
 
 ## How to split database into years or any other way
 1) change the path to db staorage for example from  `POSTGRES_DATA_DIR=./psql_data` to `POSTGRES_DATA_DIR=./psql_data_2025` in .env file
+    - needs to be done before the docker-compose is started
 2) change database name for example from `POSTGRES_DB=gis`to `POSTGRES_DB=ais_2025`, postgress can have multiple databases.
 Inorder to be able to move the db data and use it in another location, use Option 1
 Other options like pg_basebackup and rsync exist but they are more complicated to manage and sync.
@@ -127,7 +128,6 @@ docker run --rm \
 
 
 ## Create new tables
-
 
 ## add new sources of data:
 

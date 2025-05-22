@@ -17,10 +17,9 @@ def to_snake_case(text):
     
     return text
 
-file_path = "/home/sid/workspace/clear_ais/database/data/test.csv"
-# file_path = "/home/sid/workspace/clear_ais/database/data/AIS 2023 SFV/1016Baltic39311016-20231230-44.csv"
+file_path = "data/test.csv"
 
-mapping_path = 'src/source_to_db_mapping.json'
+mapping_path = 'src/csv_to_db_mapping.json'
 
 for chunk in pd.read_csv(file_path, chunksize=1000):
 
