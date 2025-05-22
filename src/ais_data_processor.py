@@ -76,10 +76,10 @@ def create_monthly_table(session, year_month):
             Column('missing_data_info', String,nullable=True),
             Column('coordinates', Geometry('LINESTRING', 4326)),
             Column('timestamps', ARRAY(DateTime)),
-            Column('speed_over_ground', ARRAY(Float)),
-            Column('navigational_status', ARRAY(Integer)),
-            Column('course_over_ground', ARRAY(Float)),
-            Column('heading', ARRAY(Float)),
+            Column('speed_over_ground', ARRAY(Float),nullable=True),
+            Column('navigational_status', ARRAY(Integer),nullable=True),
+            Column('course_over_ground', ARRAY(Float),nullable=True),
+            Column('heading', ARRAY(Float),nullable=True),
             UniqueConstraint('mmsi', 'start_dt', name=f'uix_mmsi_start_dt_{year_month}')
         )
         monthly_table.create(session.get_bind(), checkfirst=True)
@@ -137,10 +137,10 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
                             "missing_data_info": json.dumps(missing_data_info),
                             "coordinates": coordinates,
                             "timestamps": traj.timestamp,
-                            "speed_over_ground": traj.speed_over_ground,
-                            "navigational_status": traj.navigational_status,
-                            "course_over_ground": traj.course_over_ground,
-                            "heading": traj.heading
+                            "speed_over_ground": traj.get("speed_over_ground"),
+                            "navigational_status": traj.get("navigational_status"),
+                            "course_over_ground": traj.get("course_over_ground"),
+                            "heading": traj.get("heading")
                         }
                         trajectories_list.append((row, year_month))
 
