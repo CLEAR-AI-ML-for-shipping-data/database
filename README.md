@@ -119,11 +119,11 @@ docker run --rm \
 ```
 
 ## Example queries:
-- check for intersection of two linestring trajectories
-- distance between trajectories
+- [get trajectories with a bounding box](sql/get_trajectories_bbox.sql)
+- [get trajectories with a bounding box filtered on SOG](sql/get_trajectories_bbox_sog_filter.sql)
+- [distance between trajectories](sql/get_dist_traj1_to_traj2.sql)
+- check for intersection of two trajectories
 - distance between trajectory and coastline
-- get trajectories with a bounding box
-- more ideas?
 
 
 ## Create new tables

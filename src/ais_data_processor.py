@@ -392,7 +392,7 @@ if __name__=='__main__':
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     file_path = 'data/AIS 2023 SFV/989Baltic4071989-20230201-0.csv'
-    file_path = "data/test.csv"
+    # file_path = "data/test.csv"
     folder_path = 'data/AIS 2023 SFV'
 
     parser = argparse.ArgumentParser()
@@ -405,7 +405,7 @@ if __name__=='__main__':
     if os.path.exists(path):
         bulk_inserter = ClearAIS_DB(database_url)
         bulk_inserter.create_tables(drop_existing=False)
-        bulk_inserter.save_schema()
+        bulk_inserter.save_schema(file_path="sql/schema.sql")
 
         # Create queues for inter-process communication
         trajectory_queue = Queue()
