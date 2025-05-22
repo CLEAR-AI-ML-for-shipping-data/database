@@ -61,7 +61,13 @@ Count:29421289
 - split database into months
 
 
+> Web interfaces from docker:
 
+Click on the links to open the locally served web pages
+- [Martin tileserver](http://localhost:8090/catalog)
+- [pg_admin db management](http://localhost:5050)
+- [PostgREST API](http://localhost:8080)
+- [Swagger postgREST API docs](http://localhost:8070)
 
 ## NAS info:
 IP: 172.25.113.94

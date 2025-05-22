@@ -335,6 +335,8 @@ class ClearAIS_DB():
         df = pd.read_sql(query, conn)
         return df
     
+    # TODO add bulk insert nav_status
+    
     def bulk_insert_ships(self, ships_data, batch_size=1000):
         """
         Efficiently insert ships data, ignoring any conflicts (duplicates).

@@ -294,6 +294,10 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, f
                 date_obj = chunk['timestamp'].iloc[:-1][0]
                 year_month = f"{date_obj.year}_{date_obj.month:02d}" 
 
+            if not "navigational_status" in chunk.columns:
+                ids, uniques = pd.factorize(chunk['navigational_status_text'].values)
+                chunk['navigational_status'] = ids
+
             nav_status_set.update(pd.Series(chunk['navigational_status_text'].values, index=chunk['navigational_status']).to_dict())
             
             # Process ships data first
