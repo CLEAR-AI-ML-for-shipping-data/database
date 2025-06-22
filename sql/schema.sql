@@ -1,5 +1,5 @@
 
-CREATE TABLE missing_data (
+CREATE TABLE "default".missing_data (
 	id SERIAL NOT NULL, 
 	mmsi VARCHAR, 
 	timestamps TIMESTAMP WITHOUT TIME ZONE[], 
@@ -12,7 +12,7 @@ CREATE TABLE missing_data (
 ;
 
 
-CREATE TABLE nav_status (
+CREATE TABLE "default".nav_status (
 	id SERIAL NOT NULL, 
 	code VARCHAR, 
 	description VARCHAR, 
@@ -22,7 +22,7 @@ CREATE TABLE nav_status (
 ;
 
 
-CREATE TABLE ships (
+CREATE TABLE "default".ships (
 	ship_id BIGSERIAL NOT NULL, 
 	mmsi VARCHAR(20), 
 	imo VARCHAR(20), 
@@ -45,7 +45,7 @@ CREATE TABLE ships (
 ;
 
 
-CREATE TABLE trajectories (
+CREATE TABLE "default".trajectories (
 	id SERIAL NOT NULL, 
 	mmsi VARCHAR NOT NULL, 
 	route_id VARCHAR, 
@@ -68,7 +68,7 @@ CREATE TABLE trajectories (
 ;
 
 
-CREATE TABLE voyage_models (
+CREATE TABLE "default".voyage_models (
 	id SERIAL NOT NULL, 
 	comment VARCHAR, 
 	script VARCHAR, 
@@ -79,7 +79,7 @@ CREATE TABLE voyage_models (
 ;
 
 
-CREATE TABLE "Complete_Voyages" (
+CREATE TABLE "default"."Complete_Voyages" (
 	voyage_id SERIAL NOT NULL, 
 	ship_id INTEGER NOT NULL, 
 	voyage_model_id INTEGER, 
@@ -93,13 +93,13 @@ CREATE TABLE "Complete_Voyages" (
 	destination_port_distance FLOAT, 
 	ais_data geometry(LINESTRING,-1), 
 	PRIMARY KEY (voyage_id, ship_id), 
-	FOREIGN KEY(ship_id) REFERENCES ships (ship_id)
+	FOREIGN KEY(ship_id) REFERENCES "default".ships (ship_id)
 )
 
 ;
 
 
-CREATE TABLE ais_data (
+CREATE TABLE "default".ais_data (
 	timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
 	ship_id INTEGER NOT NULL, 
 	latitude FLOAT, 
@@ -114,14 +114,14 @@ CREATE TABLE ais_data (
 	rot FLOAT, 
 	eot FLOAT, 
 	PRIMARY KEY (timestamp, ship_id), 
-	FOREIGN KEY(ship_id) REFERENCES ships (ship_id), 
-	FOREIGN KEY(navigational_status) REFERENCES nav_status (id)
+	FOREIGN KEY(ship_id) REFERENCES "default".ships (ship_id), 
+	FOREIGN KEY(navigational_status) REFERENCES "default".nav_status (id)
 )
 
 ;
 
 
-CREATE TABLE voyage_segments (
+CREATE TABLE "default".voyage_segments (
 	voyage_id SERIAL NOT NULL, 
 	ship_id INTEGER NOT NULL, 
 	voyage_model_id INTEGER, 
@@ -138,7 +138,7 @@ CREATE TABLE voyage_segments (
 	ais_data geometry(LINESTRING,-1), 
 	ais_timestamps TIMESTAMP WITHOUT TIME ZONE[], 
 	PRIMARY KEY (voyage_id, ship_id), 
-	FOREIGN KEY(ship_id) REFERENCES ships (ship_id)
+	FOREIGN KEY(ship_id) REFERENCES "default".ships (ship_id)
 )
 
 ;

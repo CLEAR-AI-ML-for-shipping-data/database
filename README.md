@@ -73,7 +73,7 @@ sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,usernam
     ```
 
 ## For new CSV file, use column names merging
-- To update the csv to db mapping: `python3 src/update_mapping.py`
+- To update the csv to db mapping: `python3 src/update_mapping.py --csvpath data/test.csv`
 
 ## Insert BatchMode: Compute trajectories and load them into database on a folder of raw AIS data csv files)
 - Make sure the python environemnt is active and db / docker containers  are running
@@ -85,11 +85,17 @@ sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,usernam
 - To insert data into database one instance: `python3 src/ais_data_processor.py --datapath path/to/csv_file`
 
 ## How to split database into years or any other way
-1) change the path to db staorage for example from  `POSTGRES_DATA_DIR=./psql_data` to `POSTGRES_DATA_DIR=./psql_data_2025` in .env file
+1) create new schemas - modify POSTGRES_SCHEMA field in .env file. change from defalut schema name `public` to `2025data`  or `coastguarddata` or whatever that suits the data description.
+    - needs to be done before the inserting csv files
+
+2) change the path to db staorage for example from  `POSTGRES_DATA_DIR=./psql_data` to `POSTGRES_DATA_DIR=./psql_data_2025` in .env file
     - needs to be done before the docker-compose is started
-2) change database name for example from `POSTGRES_DB=gis`to `POSTGRES_DB=ais_2025`, postgress can have multiple databases.
+
+3) change database name for example from `POSTGRES_DB=gis`to `POSTGRES_DB=ais_2025`, postgress can have multiple databases.
 Inorder to be able to move the db data and use it in another location, use Option 1
 Other options like pg_basebackup and rsync exist but they are more complicated to manage and sync.
+
+
 
 # save db into .sql file
 ```bash
@@ -191,3 +197,9 @@ erDiagram
 
 ```
 
+
+## Todo
+
+- create new schemas automatically based on year - modified before inserting the data to database.
+- pipeline to automate inserting data.
+- make sure the process ends after inserting the data and doesn't get stuck in a forever loop

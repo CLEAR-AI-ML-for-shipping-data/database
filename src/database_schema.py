@@ -1,4 +1,4 @@
-import enum, traceback, datetime
+import enum, traceback, datetime, os,pathlib, dotenv
 from sqlalchemy import create_engine, exc
 from sqlalchemy.orm.decl_api import declarative_base, DeclarativeBase
 from sqlalchemy.orm import sessionmaker
@@ -20,8 +20,12 @@ from logger import getLogger
 from utils import try_except
 
 logger = getLogger(__file__)
+env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+dotenv.load_dotenv(dotenv_path=env_path)
 
-Base = declarative_base()
+POSTGRES_SCHEMA = os.getenv("POSTGRES_SCHEMA","default") 
+metadata = MetaData(schema=POSTGRES_SCHEMA)
+Base = declarative_base(metadata=metadata)
 
 class Ships(Base):
     __tablename__= 'ships'
@@ -186,6 +190,8 @@ class ClearAIS_DB():
     @try_except(logger=logger)
     def create_tables(self,drop_existing=True):
         if drop_existing: Base.metadata.drop_all(self.engine) 
+        with self.Session() as session:
+            session.execute(text(f"CREATE SCHEMA IF NOT EXISTS {POSTGRES_SCHEMA}"))
         # Base.metadata.create_all(self.engine)
         Ships.__table__.create(bind=self.engine, checkfirst=True)
         Nav_Status.__table__.create(bind=self.engine, checkfirst=True)

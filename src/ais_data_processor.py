@@ -60,7 +60,7 @@ def create_monthly_table(session, year_month):
     
     if not exists:
         # Create table with same schema as Trajectories
-        metadata = MetaData()
+        metadata = MetaData(schema=POSTGRES_SCHEMA)
         monthly_table = Table(
             table_name, metadata,
             Column('id', Integer, primary_key=True, autoincrement=True),
@@ -389,6 +389,7 @@ if __name__=='__main__':
     POSTGRES_PASSWORD=os.getenv("POSTGRES_PASSWORD","clear") 
     POSTGRES_PORT=int(os.getenv("POSTGRES_PORT",5432))
     POSTGRES_HOST = os.getenv("POSTGRES_HOST","localhost") 
+    POSTGRES_SCHEMA = os.getenv("POSTGRES_SCHEMA","default") 
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     file_path = 'data/AIS 2023 SFV/989Baltic4071989-20230201-0.csv'
