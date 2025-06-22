@@ -20,10 +20,13 @@ from logger import getLogger
 from utils import try_except
 
 logger = getLogger(__file__)
-env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+project_folder_path = str(pathlib.Path(__file__).resolve().parents[1]) 
+env_path = os.path.join(project_folder_path, ".env")
+print(env_path)
 dotenv.load_dotenv(dotenv_path=env_path)
 
-POSTGRES_SCHEMA = os.getenv("POSTGRES_SCHEMA","default") 
+POSTGRES_SCHEMA = os.getenv("POSTGRES_SCHEMA","public") 
+
 metadata = MetaData(schema=POSTGRES_SCHEMA)
 Base = declarative_base(metadata=metadata)
 
@@ -192,6 +195,8 @@ class ClearAIS_DB():
         if drop_existing: Base.metadata.drop_all(self.engine) 
         with self.Session() as session:
             session.execute(text(f"CREATE SCHEMA IF NOT EXISTS {POSTGRES_SCHEMA}"))
+            session.commit()
+            print("Using schema: ", POSTGRES_SCHEMA)
         # Base.metadata.create_all(self.engine)
         Ships.__table__.create(bind=self.engine, checkfirst=True)
         Nav_Status.__table__.create(bind=self.engine, checkfirst=True)
@@ -230,47 +235,6 @@ class ClearAIS_DB():
         finally:
             session.close()
 
-    def table_exists(self, session, table_name):
-        """Check if a table exists in the database"""
-        return session.execute(text(
-            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"
-        ), {"table_name": table_name}).scalar()
-
-    def create_dynamic_table(self, session, table_name, data):
-        """Create a dynamic table based on the data structure"""
-        if self.table_exists(session, table_name):
-            return Table(table_name, MetaData(), autoload_with=session.get_bind())
-            
-        # Get column types from the first row
-        first_row = data[0]
-        columns = []
-        
-        for col_name, value in first_row.items():
-            if isinstance(value, (list, tuple)):
-                # For arrays, use ARRAY type with appropriate element type
-                if value and isinstance(value[0], (int, float)):
-                    col_type = ARRAY(Float)
-                elif value and isinstance(value[0], datetime):
-                    col_type = ARRAY(DateTime)
-                else:
-                    col_type = ARRAY(String)
-            elif isinstance(value, datetime):
-                col_type = DateTime
-            elif isinstance(value, (int, float)):
-                col_type = Float
-            else:
-                col_type = String
-            
-            columns.append(Column(col_name, col_type, nullable=True))
-        
-        # Create the table
-        dynamic_table = Table(
-            table_name, MetaData(),
-            Column('id', Integer, primary_key=True),
-            *columns
-        )
-        dynamic_table.create(session.get_bind(), checkfirst=True)
-        return dynamic_table
 
     def bulk_insert(self, table, data, handle_conflicts=True, batch_size=10000):
         """
@@ -298,7 +262,7 @@ class ClearAIS_DB():
                         
                         if isinstance(table, str):
                             # For dynamic tables, create the table if it doesn't exist
-                            dynamic_table = self.create_dynamic_table(session, table, batch)
+                            dynamic_table = Table(table, metadata, autoload_with=session.get_bind())
                             # Use SQLAlchemy's bulk insert with ON CONFLICT DO NOTHING
                             stmt = insert(dynamic_table).on_conflict_do_nothing()
                             session.execute(stmt, batch)

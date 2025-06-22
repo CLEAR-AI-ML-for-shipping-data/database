@@ -6,7 +6,7 @@ import csv, traceback
 from tqdm import tqdm
 import argparse, os, json, time, re, threading, gc, uuid
 from dateutil.parser import parse
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, deque
 from geoalchemy2 import Geometry, WKTElement
 from shapely.geometry import Point, LineString
 import numpy as np
@@ -39,8 +39,6 @@ NAV_STATUS_STATIONARY = ["Moored", "Anchor"]
 
 # Global variables for parallel processing
 monthly_tables = {}
-processing_queue = queue.Queue()
-completed_files = set()
 route_id_tracker = {}
 missing_data = []
 
@@ -52,11 +50,21 @@ ships_data_df = pd.DataFrame([])
 def create_monthly_table(session, year_month):
     """Create a monthly table for trajectories if it doesn't exist"""
     table_name = f"trajectories_{year_month}"
+    schema_name = POSTGRES_SCHEMA
+
+    print(table_name, )
     
     # Check if table exists
-    exists = session.execute(text(
-        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"
-    ), {"table_name": table_name}).scalar()
+    exists = session.execute(
+        text("""
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_name = :table_name
+              AND table_schema = :schema_name
+            LIMIT 1
+        """),
+        {"table_name": table_name, "schema_name": schema_name}
+    ).first()
     
     if not exists:
         # Create table with same schema as Trajectories
@@ -98,10 +106,7 @@ def signal_handler(signum, frame):
     print("Received signal to terminate. Cleaning up...")
     sys.exit(0)
 
-def insert_complete_trajectories_to_db(trajectory_queue, database_url):
-    """Process trajectories from queue and insert into database"""
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+def insert_complete_trajectories_to_db(trajectory_queue:deque, database_url, completed_files):
     
     bulk_inserter = ClearAIS_DB(database_url)
     trajectories_list = []
@@ -110,8 +115,8 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
         while True:
             try:
                 # Get data from queue with timeout
-                data = trajectory_queue.get(timeout=1)
-                if data is None:  # Poison pill to stop the process
+                data = trajectory_queue.popleft()
+                if data is None:  # Stop the process
                     break
                     
                 mmsi, ais_data = data
@@ -159,10 +164,12 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
                     # logger.info(f"Inserted {len(trajectories_list)} Trajectories")
                     trajectories_list = []
 
-            except queue.Empty:
+
+            except IndexError:
                 # Queue is empty, check if we should continue
-                if processing_queue.empty() and len(completed_files) > 0:
+                if len(completed_files) > 0:
                     break
+                time.sleep(1)
                 continue
                 
     except Exception as e:
@@ -170,7 +177,7 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
         logger.exception("Full traceback:")
     finally:
         # Insert any remaining trajectories
-        if trajectories_list:
+        if len(trajectories_list)>0:
             monthly_trajectories = defaultdict(list)
             for row, year_month in trajectories_list:
                 monthly_trajectories[year_month].append(row)
@@ -182,7 +189,7 @@ def insert_complete_trajectories_to_db(trajectory_queue, database_url):
             
             logger.info(f"Inserted final batch of {len(trajectories_list)} Trajectories")
 
-def process_file(file_path, year_month, trajectory_queue,chunk_size = 100000):
+def process_file(file_path, year_month, trajectory_queue,completed_files:deque, chunk_size = 100000):
     """Process a single CSV file and extract year-month from filename"""
     try:
         # Get total number of lines in file for progress bar
@@ -201,11 +208,11 @@ def process_file(file_path, year_month, trajectory_queue,chunk_size = 100000):
                 trajectory_queue=trajectory_queue,
                 progress_bar=pbar
             )
-        completed_files.add(file_path)
+        completed_files.append(file_path)
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {str(e)}")
 
-def split_trajectories(chunk, year_month, filename, trajectory_queue):
+def split_trajectories(chunk, year_month, filename, trajectory_queue:deque):
     global temp_tracking_storage
 
     for mmsi, group in chunk.groupby('mmsi'):
@@ -264,7 +271,7 @@ def split_trajectories(chunk, year_month, filename, trajectory_queue):
                 missing_data_info = {'indices': missing_data_indices, "gap_duration":gap_duration}
 
             # Put trajectory data in queue
-            trajectory_queue.put((mmsi, [(traj_data, route_id, year_month,missing_data_bool, missing_data_info )]))
+            trajectory_queue.append((mmsi, [(traj_data, route_id, year_month,missing_data_bool, missing_data_info )]))
             
             del temp_tracking_storage[mmsi]
 
@@ -389,7 +396,7 @@ if __name__=='__main__':
     POSTGRES_PASSWORD=os.getenv("POSTGRES_PASSWORD","clear") 
     POSTGRES_PORT=int(os.getenv("POSTGRES_PORT",5432))
     POSTGRES_HOST = os.getenv("POSTGRES_HOST","localhost") 
-    POSTGRES_SCHEMA = os.getenv("POSTGRES_SCHEMA","default") 
+    POSTGRES_SCHEMA = os.getenv("POSTGRES_SCHEMA","public") 
     database_url = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     file_path = 'data/AIS 2023 SFV/989Baltic4071989-20230201-0.csv'
@@ -409,16 +416,20 @@ if __name__=='__main__':
         bulk_inserter.save_schema(file_path="sql/schema.sql")
 
         # Create queues for inter-process communication
-        trajectory_queue = Queue()
+        trajectory_queue = deque()
+        completed_files = deque()
 
          # Start the trajectory insertion process
-        p1 = Process(target=insert_complete_trajectories_to_db, 
-                    args=(trajectory_queue, database_url))
+        p1 = threading.Thread(target=insert_complete_trajectories_to_db, 
+                    args=(trajectory_queue, database_url,completed_files))
         p1.start()
 
         if os.path.isfile(path):
             year_month = None
-            process_file(path, year_month, trajectory_queue,chunk_size=100000)
+
+            process_file(path, year_month, trajectory_queue,completed_files, chunk_size=100000, )
+
+            trajectory_queue.append(None)
         else:
             csv_files = find_files_in_folder(path, extension=('.csv'))
             sorted_csv_files = sort_file_names_by_year_month(csv_files)
@@ -432,13 +443,13 @@ if __name__=='__main__':
             with tqdm(total=total_files, file=tqdm_logger, desc="Overall Progress", unit="file") as pbar:
                 for year_month, file_paths in sorted_csv_files.items():
                     for file_path in file_paths:
-                        process_file(file_path, year_month, trajectory_queue)
+                        process_file(file_path, year_month, trajectory_queue, completed_files)
                         pbar.update(1)
                         logger.info("completed: " + str(file_path))
               
 
             # Send poison pills to stop the processes
-            trajectory_queue.put(None)
+            trajectory_queue.append(None)
 
         # Wait for the processes to finish
         p1.join()
