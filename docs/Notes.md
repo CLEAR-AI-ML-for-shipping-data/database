@@ -84,3 +84,8 @@ sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,usernam
 
 
 ssh -f -N -T -R localhost:5050:localhost:5050 cit@10.7.0.0 -p 8082
+
+## Latest updates
+- create new schemas automatically based on year - modified before inserting the data to database.
+- pipeline to automate inserting data.
+- make sure the process ends after inserting the data and doesn't get stuck in a forever loop

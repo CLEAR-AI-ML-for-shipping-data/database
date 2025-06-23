@@ -10,7 +10,7 @@
 - Use [pg_admin db management](http://localhost:5050) to monitor the database
 
 ## DB credentials .env file
-- Need to change them in .env file before launching the docker-compose containers.
+- Need to change them in `.env` file before launching the docker-compose containers.
 - postgis db credentials (current default):  
 
     ```
@@ -73,12 +73,18 @@ sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,usernam
     ```
 
 ## For new CSV file, use column names merging
-- To update the csv to db mapping: `python3 src/update_mapping.py --csvpath data/test.csv`
+- To update the csv to db mapping: `python3 src/update_mapping.py --csvpath path/to/csv_file`
+- example: `python3 src/update_mapping.py --csvpath data/test.csv`
 
 ## Insert BatchMode: Compute trajectories and load them into database on a folder of raw AIS data csv files)
-- Make sure the python environemnt is active and db / docker containers  are running
-- To insert data into database one instance: `python3 src/ais_data_processor.py --datapath path/to/csv_files`
-- Insert data in Parallel: `bash run.sh`
+- **Make sure the python environment is activated** and **db / docker containers  are running**
+- To insert data into database in sequence (timestamped file names): 
+    - `python3 src/ais_data_processor.py --datapath path/to/csv_files`
+    - this would keep track of the trajectory over multiple files
+- Insert files with random names: `bash insert_csv_data.sh path/to/csv_files`
+    - This processes each file seperately and doesn't keep track of trajectories
+- Insert data in Parallel: `bash insert_csv_directory_parallel.sh path/to/csv_files`
+    - this would keep track of the trajectory over multiple files per each batch
 
 ## Insert csv file: Compute trajectories and load them into database (single AIS data csv file)
 - Make sure the python environemnt is active and db / docker containers  are running
@@ -92,7 +98,7 @@ sudo mount -v -t cifs //172.25.113.94/ClearData ./data/nas -o sec=ntlmv2,usernam
     - needs to be done before the docker-compose is started
 
 3) change database name for example from `POSTGRES_DB=gis`to `POSTGRES_DB=ais_2025`, postgress can have multiple databases.
-Inorder to be able to move the db data and use it in another location, use Option 1
+Inorder to be able to move the db data and use it in another location, use Option 2
 Other options like pg_basebackup and rsync exist but they are more complicated to manage and sync.
 
 
@@ -131,15 +137,6 @@ docker run --rm \
 - [distance between trajectories](sql/get_dist_traj1_to_traj2.sql)
 - check for intersection of two trajectories
 - distance between trajectory and coastline
-
-
-## Create new tables
-
-## add new sources of data:
-
-### Natural earth data
-
-### OSM data
 
 
 ### marp
@@ -196,10 +193,3 @@ erDiagram
     }
 
 ```
-
-
-## Todo
-
-- create new schemas automatically based on year - modified before inserting the data to database.
-- pipeline to automate inserting data.
-- make sure the process ends after inserting the data and doesn't get stuck in a forever loop
