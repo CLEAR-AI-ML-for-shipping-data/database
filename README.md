@@ -4,6 +4,8 @@
 - install [docker engine](https://docs.docker.com/engine/install/ubuntu/) or [docker desktop](https://docs.docker.com/desktop/)
 - install [docker-compose]()
 - cd to database directory
+- Build local image: `docker build --network=host -t mypostgis-pgvector:latest -f Dockerfile.postgis .`
+- Check that image exits: `docker images mypostgis-pgvector:latest`
 - To run all containers use `docker-compose -f docker-compose.db.yml up -d`
 - To Stop every container `docker-compose -f docker-compose.db.yml down`
 - The containers need to be up and running for the database to work.

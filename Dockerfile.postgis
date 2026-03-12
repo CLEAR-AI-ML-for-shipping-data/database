@@ -1,0 +1,43 @@
+# Dockerfile.postgis
+FROM postgis/postgis:latest
+
+# allow build-time proxy args if needed
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY}
+
+# avoid interactive prompts from packages
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+USER root
+
+RUN apt-get update -o Acquire::ForceIPv4=true \
+ && apt-get install -y --no-install-recommends \
+    postgresql-server-dev-16 \
+    build-essential \
+    git \
+    make \
+    gcc \
+    clang-13 \
+    llvm-13 \
+    lld-13 \
+    ca-certificates \
+  -o Dpkg::Options::="--force-confdef" \
+  -o Dpkg::Options::="--force-confold" \
+ && rm -rf /var/lib/apt/lists/*
+
+# create expected symlinks if packages end up providing different names/paths
+RUN if [ ! -x /usr/bin/clang-13 ] && [ -x /usr/bin/clang ]; then ln -s /usr/bin/clang /usr/bin/clang-13 || true; fi \
+ && if [ ! -x /usr/lib/llvm-13/bin/llvm-lto ] && [ -x /usr/bin/llvm-lto ]; then mkdir -p /usr/lib/llvm-13/bin && ln -s /usr/bin/llvm-lto /usr/lib/llvm-13/bin/llvm-lto || true; fi
+
+# Build and install pgvector using PG16's pg_config if present
+RUN git clone --depth 1 --branch v0.8.1 https://github.com/pgvector/pgvector.git /tmp/pgvector \
+ && cd /tmp/pgvector \
+ && PG_CONF=$([ -x /usr/lib/postgresql/16/bin/pg_config ] && echo /usr/lib/postgresql/16/bin/pg_config || which pg_config) \
+ && echo "Using PG_CONFIG=$PG_CONF" \
+ && make PG_CONFIG=$PG_CONF \
+ && make PG_CONFIG=$PG_CONF install \
+ && rm -rf /tmp/pgvector
+
+USER postgres

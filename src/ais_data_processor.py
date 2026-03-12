@@ -293,7 +293,11 @@ def read_and_transform_csv_chunk(file_path, chunk_size=10000, year_month=None, f
             chunk = chunk.rename(columns=csv_to_db_mapping)
             chunk.dropna(subset=['type_of_ship_and_cargo','type_of_ship', 'type_of_cargo','draught'], inplace=True)
             chunk = chunk.astype({'mmsi':str, 'imo':str, 'type_of_ship':int, 'type_of_cargo':int, 'type_of_ship_and_cargo':int})
-            
+
+            # Filter out MMSI starting with anything else than 2-7.
+            # https://en.wikipedia.org/wiki/Maritime_Mobile_Service_Identity
+            chunk = chunk[chunk['mmsi'].str.match(r'^[2-7]')]
+
             ts = chunk['timestamp'].str.replace(r'\.\d{1,6}|\s+[A-Za-z]+$', '', regex=True)
             month_map = {
                 r'\bmaj\b': 'May', r'\bokt\b': 'Oct',
