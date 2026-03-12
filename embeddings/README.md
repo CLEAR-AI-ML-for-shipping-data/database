@@ -37,12 +37,14 @@
 ## Prepare
 
 1. Create a config.ini file with the following structure:
+```
 [postgres]
 host = <host>
 port = <port>
 dbname = <dbname>
 user = <user>
 password = <password>
+```
 
 ## Run code
 
@@ -53,10 +55,10 @@ python db.py
 
 2. Rasterize trajectories and store in temporary folder.
 ```bash
-python rasterize_trajectories.py
+python rasterize_trajectories_concurrent.py
 ```
 
 3. Create embeddings in database.
 ```bash
-python create_embeddings.py
+python create_embeddings_batched.py
 ```
