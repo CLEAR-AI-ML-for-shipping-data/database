@@ -29,20 +29,10 @@ EXTERNAL_GEOMETRIES_PATHS = [
 FETCH_FROM_SCRATCH = False
 
 # Table names to process, if it is empty it will process all of them.
-YEAR = 2023
+YEARS = [2023, 2024]
+MONTHS = [1,2,3,4,5,6,7,8,9,10,11,12]
 TRAJECTORY_TABLE_NAMES = [
-    f'trajectories_{YEAR}_01',
-    f'trajectories_{YEAR}_02',
-    f'trajectories_{YEAR}_03',
-    f'trajectories_{YEAR}_04',
-    f'trajectories_{YEAR}_05',
-    f'trajectories_{YEAR}_06',
-    f'trajectories_{YEAR}_07',
-    f'trajectories_{YEAR}_08',
-    f'trajectories_{YEAR}_09',
-    f'trajectories_{YEAR}_10',
-    f'trajectories_{YEAR}_11',
-    f'trajectories_{YEAR}_12',
+    f'trajectories_{YEAR}_{month:02d}' for YEAR in YEARS for month in MONTHS
 ]
 
 # Set to None to skip filtering.
